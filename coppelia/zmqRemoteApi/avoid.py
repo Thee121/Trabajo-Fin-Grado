@@ -5,21 +5,21 @@ import robotica
 import pickle
 import os
 
-def load_checkpoint():
-    if os.path.exists("neat_checkpoint.pkl"):
-        with open("neat_checkpoint.pkl", "rb") as f:
+def load_previous():
+    if os.path.exists("neat_save.pkl"):
+        with open("neat_save.pkl", "rb") as f:
             return pickle.load(f)
     return None
 
-def save_checkpoint(population, generation):
-    checkpoint_data = {
+def save_file(population, generation):
+    save_data = {
         "population": population,
         "generation": generation
     }
-    with open("neat_checkpoint.pkl", "wb") as f:
-        pickle.dump(checkpoint_data, f)
-    print(f"Checkpoint saved at generation {generation}! Training can be resumed later.")
-
+    with open("neat_save.pkl", "wb") as f:
+        pickle.dump(save_data, f)
+    print(f"file saved succesfully!")
+    
 def eval_genome(genome, config):
     net = neat.nn.FeedForwardNetwork.create(genome, config)
     coppelia = robotica.Coppelia()
@@ -44,6 +44,10 @@ def eval_genome(genome, config):
     print(f"Genome evaluated with total reward: {total_reward}")
     return total_reward
 
+def eval_genomes(genomes, config):
+    for genome_id, genome in genomes:
+        genome.fitness = eval_genome(genome, config)
+        
 def get_reward(readings):
     if readings[3] < 0.1 or readings[4] < 0.2:
         return -10  # Penalize collisions
@@ -56,10 +60,10 @@ def run_neat(config_path, num_generations):
                          neat.DefaultSpeciesSet, neat.DefaultStagnation,
                          config_path)
 
-    checkpoint = load_checkpoint()
-    if checkpoint:
-        population = checkpoint["population"]
-        generation = checkpoint["generation"]
+    saveFile = load_previous()
+    if saveFile:
+        population = saveFile["population"]
+        generation = saveFile["generation"]
         print(f"Resuming training from generation {generation}")
     else:
         population = neat.Population(config)
@@ -70,33 +74,33 @@ def run_neat(config_path, num_generations):
     stats = neat.StatisticsReporter()
     population.add_reporter(stats)
 
+
+
     while generation < num_generations:
-        print(f"\n****** Running generation {generation} ******\n")  # Print once per generation
         population.run(eval_genomes, 1)  # Run exactly 1 generation
-        generation += 1  # Ensure generation count updates properly
-        save_checkpoint(population, generation)
+        
+        generation += 1  # Explicitly increment generation
+
+        save_file(population, generation)
 
     winner = max(population.population.values(), key=lambda g: g.fitness)
     with open("best_genome.pkl", "wb") as f:
         pickle.dump(winner, f)
+    
     print("Training completed! Best genome saved.")
-
-def eval_genomes(genomes, config):
-    for genome_id, genome in genomes:
-        genome.fitness = eval_genome(genome, config)
 
 def main():
     config_path = "neat_config.txt"  # Ensure you have a NEAT config file
     num_generations = 2  # Set the number of generations dynamically if needed
-    run_neat(config_path, num_generations)
-    print("llega?")
-    # Load best genome and test it
+
     if os.path.exists("best_genome.pkl"):
-        with open("best_genome.pkl", "rb") as f:
-            best_genome = pickle.load(f)
+        print("Best genome found, skipping training...")
     else:
         print("No trained model found. Training a new one...")
         run_neat(config_path, num_generations)
+    
+    # Load best genome and test it
+    if os.path.exists("best_genome.pkl"):
         with open("best_genome.pkl", "rb") as f:
             best_genome = pickle.load(f)
     
