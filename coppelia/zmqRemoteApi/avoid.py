@@ -1,4 +1,5 @@
 from queue import Full
+import numpy as np 
 import neat
 import robotica
 import pickle
@@ -39,7 +40,7 @@ def eval_genome(genome, config):
     coppelia.start_simulation()
     
     total_reward = 0
-    max_time_steps = 50  # Limit training per genome
+    max_time_steps = 200  # Limit training per genome
     time_step = 0
     prev_readings = None
 
@@ -51,17 +52,33 @@ def eval_genome(genome, config):
         readings = filter_sonar(readings, prev_readings)
         prev_readings = readings
         
-        inputs = readings + lidar_data[:16]  # Reduce lidar data size if needed
+        inputs = readings + lidar_data[:32]  # Reduce lidar data size if needed
         outputs = net.activate(inputs)
         
         # Dynamic speed adjustment
         base_speed = 2.0
         adjusted_speed = adjust_speed(base_speed, readings)
         lspeed, rspeed = outputs[0] * adjusted_speed, outputs[1] * adjusted_speed
-        robot.set_speed(lspeed, rspeed)        
-        lspeed, rspeed = outputs[0] * 2, outputs[1] * 2
+        # Define speed limits to prevent extreme turns
+        max_speed = 2.0  # Maximum wheel speed
+        min_speed = 0.2  # Prevent stopping completely
+
+        # Normalize NEAT outputs (-1 to 1) into speed range (min_speed to max_speed)
+        lspeed = min_speed + (outputs[0] + 1) / 2 * (max_speed - min_speed)
+        rspeed = min_speed + (outputs[1] + 1) / 2 * (max_speed - min_speed)
         robot.set_speed(lspeed, rspeed)
         
+        # Initialize previous speeds if not already set
+        if 'prev_lspeed' not in globals():
+            global prev_lspeed, prev_rspeed
+            prev_lspeed, prev_rspeed = lspeed, rspeed
+
+        alpha = 0.5  # Smoothing factor (0: no change, 1: instant change)
+        lspeed = alpha * lspeed + (1 - alpha) * prev_lspeed
+        rspeed = alpha * rspeed + (1 - alpha) * prev_rspeed
+
+        prev_lspeed, prev_rspeed = lspeed, rspeed  # Store for next step
+
         # Reward system
         reward = get_reward(readings)
         total_reward += reward
@@ -79,12 +96,13 @@ def eval_genomes(genomes, config):
         
 def get_reward(readings):
     if readings[3] < 0.1 or readings[4] < 0.2:
-        return -10  # Penalize collisions
+        return -5  # Penalize collisions
     elif readings[1] < 0.1 or readings[5] < 0.4:
-        return -5  # Slight penalty for obstacles nearby
-    return +1  # Reward for moving freely
+        return -2  # Slight penalty for obstacles nearby
+    return +3  # Reward for moving freely
 
-def run_neat(config_path, num_generations):
+def run_neat(config_path):
+    num_generations = 5 # Change for number of generations
     config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                          neat.DefaultSpeciesSet, neat.DefaultStagnation,
                          config_path)
@@ -96,7 +114,7 @@ def run_neat(config_path, num_generations):
         print(f"Resuming training from generation {generation}")
     else:
         population = neat.Population(config)
-        generation = 1
+        generation = 0
         print("Starting new training session...")
 
     population.add_reporter(neat.StdOutReporter(True))
@@ -114,13 +132,11 @@ def run_neat(config_path, num_generations):
 
 def main():
     config_path = "neat_config.txt"
-    num_generations = 2  # Set the number of generations dynamically if needed
-
     if os.path.exists("best_genome.pkl"):
         print("Best genome found, skipping training...")
     else:
         print("No trained model found. Training a new one...")
-        run_neat(config_path, num_generations)
+        run_neat(config_path)
     
     # Load best genome and test it
     if os.path.exists("best_genome.pkl"):
