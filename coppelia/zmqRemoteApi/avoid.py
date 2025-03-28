@@ -5,23 +5,6 @@ import pickle
 import os
 import cv2
 
-def filter_sonar(readings, prev_readings, alpha=0.5):
-    if prev_readings is None:
-        return readings
-    return [alpha * new + (1 - alpha) * old for new, old in zip(readings, prev_readings)]
-
-def adjust_speed(base_speed, readings, min_dist=0.2, max_dist=1.0):
-    min_reading = min(readings)
-    if min_reading < min_dist:
-        return base_speed * 0.5  # Slow down significantly when too close
-    elif min_reading > max_dist:
-        return base_speed * 1.2  # Slightly increase speed when obstacles are far
-    return base_speed  # Default speed
-
-def detect_line(robot):
-    sensor_readings = robot.get_sonar()
-    return any(sensor_readings)  # If any sensor detects the line, return True
-
 def avoidObstacle(readings):
     if (readings[3] < 0.1) or (readings[4] < 0.2):
         lspeed, rspeed = +0.1, -0.8
@@ -32,6 +15,28 @@ def avoidObstacle(readings):
     else:
         lspeed, rspeed = +1.5, +1.5
     return lspeed, rspeed
+
+def line_search(robot):
+    for _ in range(10):  # Rotate to scan surroundings
+        robot.set_speed(0.5, -0.5)
+        img = robot.get_image()
+        line_detected, cx = process_camera_image(img)
+        if line_detected:
+            return 0.8, 0.8  # Move forward when line is found
+    return 0.5, -0.5  # Default rotation if no line is found
+
+def filter_sonar(readings, prev_readings, alpha=0.5):
+    if prev_readings is None:
+        return readings
+    return [alpha * new + (1 - alpha) * old for new, old in zip(readings, prev_readings)]
+
+def adjust_speed(base_speed, readings, min_dist=0.2, max_dist=1.0):
+    min_reading = min(readings)
+    if min_reading < min_dist:
+        return base_speed * 0.5 
+    elif min_reading > max_dist:
+        return base_speed * 1.2
+    return base_speed
 
 def process_camera_image(img):
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -57,6 +62,14 @@ def eval_genome(genome, config):
     net = neat.nn.FeedForwardNetwork.create(genome, config)
     coppelia = robotica.Coppelia()
     robot = robotica.P3DX(coppelia.sim, 'PioneerP3DX', True)
+    
+    min_speed = 2.0
+    no_detection_dist = 0.5
+    max_detection_dist = 0.2
+    detect = [0] * robot.num_sonar
+    lbraitenberg = [-0.2,-0.4,-0.6,-0.8,-1,-1.2,-1.4,-1.6, 0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]
+    rbraitenberg = [-1.6,-1.4,-1.2,-1,-0.8,-0.6,-0.4,-0.2, 0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]
+    
     coppelia.start_simulation()
     
     total_reward = 0
@@ -65,9 +78,24 @@ def eval_genome(genome, config):
     prev_readings = None
     stuck_steps = 0
     prev_ls, prev_rs = 0, 0
+    line_lost_steps = 0
     
     while coppelia.is_running() and time_step < max_time_steps:
-        readings = normalize_readings(robot.get_sonar())
+        readings = robot.get_sonar()
+        for i in range(robot.num_sonar):
+            dist = readings[i]
+            if dist < no_detection_dist:
+                if dist < max_detection_dist:
+                    dist = max_detection_dist
+                detect[i] = 1 - ((dist-max_detection_dist) / (no_detection_dist-max_detection_dist))
+            else:
+                detect[i] = 0
+
+        lspeed, rspeed = min_speed, min_speed
+        for i in range(robot.num_sonar):
+            lspeed += lbraitenberg[i] * detect[i]
+            rspeed += rbraitenberg[i] * detect[i]
+
         lidar_data = normalize_readings(robot.get_lidar()[:32])
         img = robot.get_image()
         cv2.imshow('Camera Feed', img)
@@ -77,22 +105,37 @@ def eval_genome(genome, config):
         
         readings = filter_sonar(readings, prev_readings)
         prev_readings = readings
-        inputs = readings + lidar_data
+        inputs = readings + lidar_data + [stuck_steps / 10.0, line_lost_steps / 10.0] 
         outputs = net.activate(inputs)
-        
-        base_speed = 2.0
-        adjusted_speed = adjust_speed(base_speed, readings)
         
         if line_detected:
             stuck_steps = 0
-            lspeed, rspeed = 1.0 * adjusted_speed, 1.0 * adjusted_speed
+            line_lost_steps = 0  # Reset line lost counter
+            lspeed, rspeed = min_speed, min_speed
         else:
             stuck_steps += 1
-            lspeed, rspeed = outputs[0] * adjusted_speed, outputs[1] * adjusted_speed
+            line_lost_steps += 1
+            
+            if line_lost_steps > 15:  # If the line is lost for too long, prioritize searching
+                base_ls, base_rs = line_search(robot)
+            elif stuck_steps > 10:  # If stuck for too long, use learned obstacle avoidance
+                base_ls, base_rs = avoidObstacle(readings)
+            else:
+                base_ls, base_rs = avoidObstacle(readings)  # Use learned obstacle avoidance
+            
+            turn_factor = outputs[2] * 1.5  # NEAT learns turning intensity
+            speed_factor = outputs[3] * 0.5  # NEAT learns speed scaling
+            
+            lspeed = (base_ls + turn_factor) * (1 + speed_factor)
+            rspeed = (base_rs - turn_factor) * (1 + speed_factor)
         
         robot.set_speed(lspeed, rspeed)
         
         reward = get_reward(readings, line_detected, prev_ls, prev_rs, stuck_steps)
+        
+        if line_lost_steps > 15:
+            reward -= 7
+        
         total_reward += reward
         
         prev_ls, prev_rs = lspeed, rspeed
@@ -100,15 +143,6 @@ def eval_genome(genome, config):
     
     coppelia.stop_simulation()
     return total_reward
-
-def line_search(robot):
-    for _ in range(10):  # Rotate to scan surroundings
-        robot.set_speed(0.5, -0.5)
-        img = robot.get_image()
-        line_detected, cx = process_camera_image(img)
-        if line_detected:
-            return 0.8, 0.8  # Move forward when line is found
-    return 0.5, -0.5  # Default rotation if no line is found
 
 
 def eval_genomes(genomes, config):
@@ -124,13 +158,13 @@ def get_reward(readings, line_status, prev_ls, prev_rs, stuck_steps):
     
     # Strong reward for following the line
     if line_status:
-        reward += 10
+        reward += 12
     
     # Penalty for obstacles too close
     if readings[3] < 0.1 or readings[4] < 0.2:
         reward -= 5
     elif readings[1] < 0.1 or readings[5] < 0.4:
-        reward -= 2
+        reward -= 3
     
     # Penalty for excessive spinning
     if abs(prev_ls - prev_rs) > 1.5:
@@ -155,7 +189,7 @@ def run_neat(config_path):
     population.add_reporter(stats)
     population.add_reporter(neat.Checkpointer(1, filename_prefix=f"{CHECKPOINT_DIR}/neat_checkpoint-"))    
     
-    winner = population.run(eval_genomes, 10) # Runs up to X generations
+    winner = population.run(eval_genomes, 20) # Runs up to X generations
             
     with open("best_genome.pkl", "wb") as f:
         pickle.dump(winner, f)
