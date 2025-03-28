@@ -1,37 +1,9 @@
 import numpy as np 
 import neat
-from neat.checkpoint import Checkpointer
 import robotica
 import pickle
-import glob
 import os
 import cv2
-
-
-CHECKPOINT_DIR = "checkpoints"
-
-def load_previous():
-    """Loads the latest NEAT checkpoint from the folder."""
-    checkpoints = glob.glob(f"{CHECKPOINT_DIR}/neat_checkpoint-*.pkl")
-    
-    if not checkpoints:
-        return None  # No checkpoints found
-
-    # Extract generation numbers and find the latest one
-    latest_checkpoint = max(checkpoints, key=lambda f: int(f.split('-')[-1].split('.')[0]))
-    
-    print(f"Resuming from latest checkpoint: {latest_checkpoint}")
-    return Checkpointer.restore_checkpoint(latest_checkpoint)
-
-def save_file(population, generation):
-    """Saves the NEAT checkpoint in a dedicated folder."""
-    if not os.path.exists(CHECKPOINT_DIR):
-        os.makedirs(CHECKPOINT_DIR)  # Create folder if not exists
-
-    checkpoint = Checkpointer(generation_interval=1, filename_prefix=f"{CHECKPOINT_DIR}/neat_checkpoint-")
-    checkpoint.save_checkpoint(population, population.species, population.reproduction, generation)
-
-    print(f"Checkpoint saved for generation {generation}")
 
 def filter_sonar(readings, prev_readings, alpha=0.5):
     if prev_readings is None:
@@ -176,13 +148,14 @@ def run_neat(config_path):
                          config_path)
     population = neat.Population(config)
     print("Starting training session")
-
-    population.add_reporter(neat.StdOutReporter(True))
-    stats = neat.StatisticsReporter()
-    population.add_reporter(stats)
-    population.add_reporter(neat.Checkpointer(1))
     
-    winner = population.run(eval_genomes, 5)
+    CHECKPOINT_DIR = "checkpoints"
+    stats = neat.StatisticsReporter()
+    population.add_reporter(neat.StdOutReporter(True))
+    population.add_reporter(stats)
+    population.add_reporter(neat.Checkpointer(1, filename_prefix=f"{CHECKPOINT_DIR}/neat_checkpoint-"))    
+    
+    winner = population.run(eval_genomes, 10) # Runs up to X generations
             
     with open("best_genome.pkl", "wb") as f:
         pickle.dump(winner, f)
