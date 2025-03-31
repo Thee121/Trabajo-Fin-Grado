@@ -5,6 +5,7 @@ import pickle
 import os
 import cv2
 import sys
+import shutil
         
 def avoidObstacle(readings, base_speed=1.5):
     if (readings[3] < 0.1) or (readings[4] < 0.2):
@@ -121,7 +122,7 @@ def eval_genome(genome, config):
         
         robot.set_speed(lspeed, rspeed)
         
-        reward = get_reward(readings, line_detected, line_lost_steps, prev_ls, prev_rs, stuck_steps)
+        reward = get_reward(readings, line_detected, line_lost_steps, stuck_steps)
         
 
         
@@ -142,7 +143,7 @@ def eval_genomes(genomes, config):
 def normalize_readings(readings, min_val=0, max_val=1):
     return [(r - min_val) / (max_val - min_val) for r in readings]
 
-def get_reward(readings, line_detected, line_lost_steps, prev_ls, prev_rs, stuck_steps):
+def get_reward(readings, line_detected, line_lost_steps, stuck_steps):
     reward = 0
     
     # Follows the line
@@ -151,13 +152,9 @@ def get_reward(readings, line_detected, line_lost_steps, prev_ls, prev_rs, stuck
     
     # Obstacles too close
     if readings[3] < 0.1 or readings[4] < 0.2:
-        reward -= 3
+        reward -= 4
     elif readings[1] < 0.1 or readings[5] < 0.4:
-        reward -= 2
-    
-    # Excessive spinning
-    if abs(prev_ls - prev_rs) > 1.5:
-        reward -= 2  
+        reward -= 3
     
     # Stuck for too long
     if stuck_steps > 10:
@@ -186,7 +183,7 @@ def run_neat(config_path):
     population.add_reporter(stats)
     population.add_reporter(neat.Checkpointer(1, filename_prefix=f"{CHECKPOINT_DIR}/neat_checkpoint-"))    
     
-    winner = population.run(eval_genomes, 2) # Runs up to X generations
+    winner = population.run(eval_genomes, 10) # Runs up to X generations
     
     sys.stdout = sys.__stdout__
     log_file.close()
@@ -198,49 +195,101 @@ def run_neat(config_path):
 
 def main():
     config_path = "neat_config.txt"
+    checkpoint_dir = "checkpoints"
+
     if os.path.exists("best_genome.pkl"):
-        print("Best genome found, skipping training")
+        choice = input("Best genome found. Do you want to continue training from the last checkpoint? (y/n): ").strip().lower()
+        if choice == "y":
+            checkpoint_files = [f for f in os.listdir(checkpoint_dir) if f.startswith("neat_checkpoint-")]
+            if checkpoint_files:
+                latest_checkpoint = max(checkpoint_files, key=lambda f: int(f.split("-")[-1]))  # Get the latest checkpoint
+                print(f"Resuming training from {latest_checkpoint}...")
+
+                # Redirect output to log file
+                log_file = open("neat_output.txt", "a")
+                sys.stdout = log_file
+
+                # Load the checkpoint and resume training
+                population = neat.Checkpointer.restore_checkpoint(os.path.join(checkpoint_dir, latest_checkpoint))
+                population.run(eval_genomes, 10)  # Continue training
+                
+                # Restore stdout
+                sys.stdout = sys.__stdout__
+                log_file.close()
+
+                # Append cleaned logs to neat_output_clean.txt
+                try:
+                    with open("neat_output.txt", "r") as fr:
+                        lines = fr.readlines()
+
+                    with open("neat_output_clean.txt", "a") as fw:  # Append instead of overwrite
+                        for line in lines:
+                            if line.strip('\n') not in ['*** connecting to coppeliasim', '*** getting handles PioneerP3DX', '*** done']:
+                                fw.write(line)
+                    
+                    print("neat_output file updated and cleaned!")
+                except Exception as e:
+                    print(f"Error while updating logs: {e}")
+            else:
+                print("No checkpoints found. Starting training from scratch.")
+                run_neat(config_path)
+        else:
+            print("Testing the best trained genome.")
     else:
-        print("No trained model found. Training a new one")
+        print("No trained model found. Cleaning checkpoint directory...")
+        
+        # Delete all checkpoint files if they exist
+        if os.path.exists(checkpoint_dir):
+            for file in os.listdir(checkpoint_dir):
+                file_path = os.path.join(checkpoint_dir, file)
+                try:
+                    if os.path.isfile(file_path):
+                        os.remove(file_path)
+                    elif os.path.isdir(file_path):
+                        shutil.rmtree(file_path)  # In case there are subdirectories
+                except Exception as e:
+                    print(f"Error deleting {file_path}: {e}")
+
+        print("Checkpoint directory cleaned. Starting new training session.")
         run_neat(config_path)
-    
-    # Cleans unwanted lines    
+
+    # Clean unwanted log lines
     try:
         with open('neat_output.txt', 'r') as fr:
             lines = fr.readlines()
 
-            with open('neat_output_clean.txt', 'w') as fw:
-                for line in lines:
-                    if line.strip('\n') not in ['*** connecting to coppeliasim', '*** getting handles PioneerP3DX', '*** done']:
-                        fw.write(line)
+        with open('neat_output_clean.txt', 'w') as fw:
+            for line in lines:
+                if line.strip('\n') not in ['*** connecting to coppeliasim', '*** getting handles PioneerP3DX', '*** done']:
+                    fw.write(line)
         print("neat_output file cleaned!")
-    except:
-        print("Oops! something error")
-        
-    # Load best genome and test it
+    except Exception as e:
+        print(f"Error while cleaning logs: {e}")
+
+    # Load and test the best genome
     if os.path.exists("best_genome.pkl"):
         with open("best_genome.pkl", "rb") as f:
             best_genome = pickle.load(f)
-    
-    print("Testing best trained genome")
-    best_net = neat.nn.FeedForwardNetwork.create(best_genome, neat.Config(
-        neat.DefaultGenome, neat.DefaultReproduction,
-        neat.DefaultSpeciesSet, neat.DefaultStagnation,
-        config_path
-    ))
-    
-    coppelia = robotica.Coppelia()
-    robot = robotica.P3DX(coppelia.sim, 'PioneerP3DX')
-    coppelia.start_simulation()
-    
-    while coppelia.is_running():
-        readings = robot.get_sonar()
-        lidar_data = robot.get_lidar()
-        outputs = best_net.activate(readings + lidar_data[:32])
-        robot.set_speed(outputs[0] * 2, outputs[1] * 2)
-    
-    coppelia.stop_simulation()
-    print("Best genome test completed!")
+
+        print("Testing best trained genome.")
+        best_net = neat.nn.FeedForwardNetwork.create(best_genome, neat.Config(
+            neat.DefaultGenome, neat.DefaultReproduction,
+            neat.DefaultSpeciesSet, neat.DefaultStagnation,
+            config_path
+        ))
+
+        coppelia = robotica.Coppelia()
+        robot = robotica.P3DX(coppelia.sim, 'PioneerP3DX')
+        coppelia.start_simulation()
+
+        while coppelia.is_running():
+            readings = robot.get_sonar()
+            lidar_data = robot.get_lidar()
+            outputs = best_net.activate(readings + lidar_data[:32])
+            robot.set_speed(outputs[0] * 2, outputs[1] * 2)
+
+        coppelia.stop_simulation()
+        print("Best genome test completed!")
 
 if __name__ == '__main__':
     main()
