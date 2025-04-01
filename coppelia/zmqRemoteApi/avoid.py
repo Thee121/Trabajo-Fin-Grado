@@ -6,9 +6,6 @@ import cv2
 import sys
 import shutil
 
-def adjust_speed(speed):
-    return max(min(speed, 1.5), -1.5)
-
 def process_camera_image(img):
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     _, thresh = cv2.threshold(gray, 50, 100, cv2.THRESH_BINARY_INV)  # Detect black lines
@@ -65,8 +62,6 @@ def eval_genome(genome, config):
         lspeed += outputs[0] * 0.3  # Small adjustment based on NEAT output
         rspeed += outputs[1] * 0.3  # Small adjustment based on NEAT output
         
-        lspeed = adjust_speed(lspeed)
-        rspeed = adjust_speed(rspeed)
         robot.set_speed(lspeed, rspeed)
         
         reward = get_reward(line_detected, alignment_factor, stuck_steps, line_lost_steps, readings, lspeed, rspeed)
@@ -82,34 +77,37 @@ def eval_genomes(genomes, config):
         print(f"Genome {genome_id} fitness: {genome.fitness}")
 
 def get_reward(line_detected, alignment_factor, stuck_steps, line_lost_steps, readings, lspeed, rspeed):
-    line_follow_weight = 12
-    alignment_weight = 2
-    obstacle_penalty_multiplier = 0.5  # Reduces reward when obstacles are too close
-    stuck_penalty_multiplier = 0.7    # Reduces reward if stuck for too long
-    line_lost_penalty_multiplier = 0.6  # Reduces reward if line is lost for too long
-    spinning_penalty_multiplier = 0.5   # Reduces reward if spinning excessively
+    reward = 0
     
-    line_follow_reward = line_follow_weight if line_detected else 0
-
-    alignment_reward = alignment_weight if abs(alignment_factor) < 0.2 else 0
-
-    obstacle_penalty = 1
+    if line_detected:
+        reward += 12 * (1 - abs(alignment_factor))  # Reward based on how aligned the robot is with the line
+        if abs(alignment_factor) < 0.1:  # Extra reward for good alignment
+            reward += 3
+    else:
+        # If the line is not detected, apply a penalty that scales with the time lost
+        reward -= 2 * (line_lost_steps / 20)  # Penalize over time for line loss
+    
+    # Obstacle avoidance
     if readings[3] < 0.1 or readings[4] < 0.2:
-        obstacle_penalty = obstacle_penalty_multiplier
+        reward *= 0.5  # Reduce reward for critical obstacles in front
     elif readings[1] < 0.1 or readings[5] < 0.4:
-        obstacle_penalty = obstacle_penalty_multiplier
+        reward *= 0.7  # Less severe obstacle avoidance
+    else:
+        reward += 2  # Small reward for clear path
     
-    stuck_penalty = stuck_penalty_multiplier if stuck_steps > 10 else 1
+    if stuck_steps > 10:
+        reward *= 0.5  # Reduce reward if stuck for too long
+    
+    if line_detected:
+        reward += 5 * (1 - (line_lost_steps / max(200, stuck_steps)))  # Reward based on how much time the robot stays on track
+    else:
+        reward -= 1  # Small penalty for every step without the line
+    
+    if abs(lspeed - rspeed) > 1.5:
+        reward *= 0.8  # Penalize excessive turning (not moving straight)
+    
+    return reward
 
-    line_lost_penalty = line_lost_penalty_multiplier if line_lost_steps > 15 else 1
-
-    spinning_penalty = spinning_penalty_multiplier if abs(lspeed - rspeed) > 1.5 else 1
-
-    total_reward = (
-        line_follow_reward + alignment_reward
-    ) * obstacle_penalty * stuck_penalty * line_lost_penalty * spinning_penalty
-
-    return total_reward
 
 
 def run_neat(config_path):
@@ -129,7 +127,7 @@ def run_neat(config_path):
     population.add_reporter(stats)
     population.add_reporter(neat.Checkpointer(1, filename_prefix=f"{CHECKPOINT_DIR}/neat_checkpoint-"))    
     
-    winner = population.run(eval_genomes, 10) # Runs up to X generations
+    winner = population.run(eval_genomes, 20) # Runs up to X generations
     
     sys.stdout = sys.__stdout__
     log_file.close()
