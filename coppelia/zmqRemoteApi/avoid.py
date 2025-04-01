@@ -35,7 +35,7 @@ def eval_genome(genome, config):
     coppelia.start_simulation()
     
     total_reward = 0
-    max_time_steps = 200
+    max_time_steps = 500
     time_step = 0
     prev_readings = None
     stuck_steps = 0
@@ -103,7 +103,7 @@ def get_reward(line_detected, alignment_factor, stuck_steps, line_lost_steps, re
         
     # Time robot stays on track
     if line_detected:
-        reward += 5 * (1 - (line_lost_steps / max(200, stuck_steps)))  
+        reward += 5 * (1 - (line_lost_steps / max(float('inf'), stuck_steps)))  
     else:
         reward -= 1
     
@@ -160,24 +160,8 @@ def main():
         print("Checkpoint directory cleaned. Starting new training session.")
         run_neat(config_path)
         
-    choice = input("Best genome found. Do you want to continue training from the last checkpoint? (y/n): ").strip().lower()
-    if not choice == "y":
-        print("Testing the best trained genome.")
-
-    checkpoint_files = [f for f in os.listdir(checkpoint_dir) if f.startswith("neat_checkpoint-")]
-    if not checkpoint_files:
-        
-        print("No checkpoints found. Starting training from scratch.")
-        run_neat(config_path)
-        
-    latest_checkpoint = max(checkpoint_files, key=lambda f: int(f.split("-")[-1]))  # Get the latest checkpoint
-    print(f"Resuming training from {latest_checkpoint}...")
-
     log_file = open("neat_output.txt", "a")
     sys.stdout = log_file
-
-    population = neat.Checkpointer.restore_checkpoint(os.path.join(checkpoint_dir, latest_checkpoint))
-    population.run(eval_genomes, 10)  # Continue training
     
     sys.stdout = sys.__stdout__
     log_file.close()
@@ -226,7 +210,7 @@ def main():
             readings = robot.get_sonar()
             lidar_data = robot.get_lidar()
             outputs = best_net.activate(readings + lidar_data[:32])
-            robot.set_speed(outputs[0] * 2, outputs[1] * 2)
+            robot.set_speed(outputs[0], outputs[1])
 
         coppelia.stop_simulation()
         print("Best genome test completed!")
