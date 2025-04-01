@@ -53,14 +53,14 @@ def eval_genome(genome, config):
         alignment_factor = ((cx - image_center) / image_center) if line_detected else 0
         
         # The robot will move straight when aligned with the line, and turn when misaligned
-        lspeed = 0.5 - alignment_factor * 0.2  # Adjust left speed based on alignment
-        rspeed = 0.5 + alignment_factor * 0.2  # Adjust right speed based on alignment
+        lspeed = 0.5 - alignment_factor
+        rspeed = 0.5 + alignment_factor
         
         # Apply NEAT neural network output for fine-tuning
         outputs = net.activate(readings + [r / 1.0 for r in robot.get_lidar()[:32]])
         
-        lspeed += outputs[0] * 0.3  # Small adjustment based on NEAT output
-        rspeed += outputs[1] * 0.3  # Small adjustment based on NEAT output
+        lspeed += outputs[0]
+        rspeed += outputs[1]
         
         robot.set_speed(lspeed, rspeed)
         
@@ -80,35 +80,38 @@ def get_reward(line_detected, alignment_factor, stuck_steps, line_lost_steps, re
     reward = 0
     
     if line_detected:
-        reward += 12 * (1 - abs(alignment_factor))  # Reward based on how aligned the robot is with the line
-        if abs(alignment_factor) < 0.1:  # Extra reward for good alignment
+        reward += 12 * (1 - abs(alignment_factor))
+        # Extra reward for good alignment
+        if abs(alignment_factor) < 0.1:  
             reward += 3
+    # Apply a penalty that scales with the time lost
     else:
-        # If the line is not detected, apply a penalty that scales with the time lost
-        reward -= 2 * (line_lost_steps / 20)  # Penalize over time for line loss
+        reward -= 2 * (line_lost_steps / 20)
     
-    # Obstacle avoidance
+    # Reduce reward for critical obstacles in front
     if readings[3] < 0.1 or readings[4] < 0.2:
-        reward *= 0.5  # Reduce reward for critical obstacles in front
+        reward *= 0.5
+    # Less severe obstacle avoidance
     elif readings[1] < 0.1 or readings[5] < 0.4:
-        reward *= 0.7  # Less severe obstacle avoidance
+        reward *= 0.7  
+    # Small reward for clear path
     else:
-        reward += 2  # Small reward for clear path
+        reward += 2  
     
     if stuck_steps > 10:
-        reward *= 0.5  # Reduce reward if stuck for too long
-    
+        reward *= 0.5
+        
+    # Time robot stays on track
     if line_detected:
-        reward += 5 * (1 - (line_lost_steps / max(200, stuck_steps)))  # Reward based on how much time the robot stays on track
+        reward += 5 * (1 - (line_lost_steps / max(200, stuck_steps)))  
     else:
-        reward -= 1  # Small penalty for every step without the line
+        reward -= 1
     
+    # Penalize excessive turning
     if abs(lspeed - rspeed) > 1.5:
-        reward *= 0.8  # Penalize excessive turning (not moving straight)
+        reward *= 0.8  
     
     return reward
-
-
 
 def run_neat(config_path):
     
@@ -141,45 +144,8 @@ def main():
     config_path = "neat_config.txt"
     checkpoint_dir = "checkpoints"
 
-    if os.path.exists("best_genome.pkl"):
-        choice = input("Best genome found. Do you want to continue training from the last checkpoint? (y/n): ").strip().lower()
-        if choice == "y":
-            checkpoint_files = [f for f in os.listdir(checkpoint_dir) if f.startswith("neat_checkpoint-")]
-            if checkpoint_files:
-                latest_checkpoint = max(checkpoint_files, key=lambda f: int(f.split("-")[-1]))  # Get the latest checkpoint
-                print(f"Resuming training from {latest_checkpoint}...")
-
-                # Redirect output to log file
-                log_file = open("neat_output.txt", "a")
-                sys.stdout = log_file
-
-                # Load the checkpoint and resume training
-                population = neat.Checkpointer.restore_checkpoint(os.path.join(checkpoint_dir, latest_checkpoint))
-                population.run(eval_genomes, 10)  # Continue training
-                
-                # Restore stdout
-                sys.stdout = sys.__stdout__
-                log_file.close()
-                try:
-                    with open("neat_output.txt", "r") as fr:
-                        lines = fr.readlines()
-
-                    with open("neat_output_clean.txt", "a") as fw:
-                        for line in lines:
-                            if line.strip('\n') not in ['*** connecting to coppeliasim', '*** getting handles PioneerP3DX', '*** done']:
-                                fw.write(line)
-                    
-                    print("neat_output file updated and cleaned!")
-                except Exception as e:
-                    print(f"Error while updating logs: {e}")
-            else:
-                print("No checkpoints found. Starting training from scratch.")
-                run_neat(config_path)
-        else:
-            print("Testing the best trained genome.")
-    else:
+    if not os.path.exists("best_genome.pkl"):
         print("No trained model found. Cleaning checkpoint directory...")
-        
         if os.path.exists(checkpoint_dir):
             for file in os.listdir(checkpoint_dir):
                 file_path = os.path.join(checkpoint_dir, file)
@@ -187,12 +153,47 @@ def main():
                     if os.path.isfile(file_path):
                         os.remove(file_path)
                     elif os.path.isdir(file_path):
-                        shutil.rmtree(file_path)  # In case there are subdirectories
+                        shutil.rmtree(file_path)  # If there are subdirectories
                 except Exception as e:
                     print(f"Error deleting {file_path}: {e}")
 
         print("Checkpoint directory cleaned. Starting new training session.")
         run_neat(config_path)
+        
+    choice = input("Best genome found. Do you want to continue training from the last checkpoint? (y/n): ").strip().lower()
+    if not choice == "y":
+        print("Testing the best trained genome.")
+
+    checkpoint_files = [f for f in os.listdir(checkpoint_dir) if f.startswith("neat_checkpoint-")]
+    if not checkpoint_files:
+        
+        print("No checkpoints found. Starting training from scratch.")
+        run_neat(config_path)
+        
+    latest_checkpoint = max(checkpoint_files, key=lambda f: int(f.split("-")[-1]))  # Get the latest checkpoint
+    print(f"Resuming training from {latest_checkpoint}...")
+
+    log_file = open("neat_output.txt", "a")
+    sys.stdout = log_file
+
+    population = neat.Checkpointer.restore_checkpoint(os.path.join(checkpoint_dir, latest_checkpoint))
+    population.run(eval_genomes, 10)  # Continue training
+    
+    sys.stdout = sys.__stdout__
+    log_file.close()
+    
+    try:
+        with open("neat_output.txt", "r") as fr:
+            lines = fr.readlines()
+
+        with open("neat_output_clean.txt", "a") as fw:
+            for line in lines:
+                if line.strip('\n') not in ['*** connecting to coppeliasim', '*** getting handles PioneerP3DX', '*** done']:
+                    fw.write(line)
+        
+        print("neat_output file updated and cleaned!")
+    except Exception as e:
+        print(f"Error while updating logs: {e}")
 
     try:
         with open('neat_output.txt', 'r') as fr:
