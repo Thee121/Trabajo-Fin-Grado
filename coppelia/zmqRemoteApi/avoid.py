@@ -28,18 +28,14 @@ def line_search(robot):
             return 0.8, 0.8  # Move forward when line is found
     return 0.5, -0.5  # Default rotation if no line is found
 
+
 def filter_sonar(readings, prev_readings, alpha=0.5):
     if prev_readings is None:
         return readings
     return [alpha * new + (1 - alpha) * old for new, old in zip(readings, prev_readings)]
 
-def adjust_speed(base_speed, readings, min_dist=0.2, max_dist=1.0):
-    min_reading = min(readings)
-    if min_reading < min_dist:
-        return base_speed * 0.5 
-    elif min_reading > max_dist:
-        return base_speed * 1.2
-    return base_speed
+def adjust_speed(speed):
+    return max(min(speed, 1.0), -1.0)
 
 def process_camera_image(img):
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -63,12 +59,11 @@ def process_camera_image(img):
     return line_detected, cx
 
 
+
 def eval_genome(genome, config):
     net = neat.nn.FeedForwardNetwork.create(genome, config)
     coppelia = robotica.Coppelia()
     robot = robotica.P3DX(coppelia.sim, 'PioneerP3DX', True)
-    
-    min_speed = 2.0
     
     coppelia.start_simulation()
     
@@ -77,59 +72,44 @@ def eval_genome(genome, config):
     time_step = 0
     prev_readings = None
     stuck_steps = 0
-    prev_ls, prev_rs = 0, 0
     line_lost_steps = 0
     
     while coppelia.is_running() and time_step < max_time_steps:
         readings = robot.get_sonar()
         img = robot.get_image()
-        cv2.imshow('Camera Feed', img)
-        cv2.waitKey(1)
         
         line_detected, cx = process_camera_image(img)
-        readings = filter_sonar(readings, prev_readings)
+        readings = [0.5 * new + 0.5 * old for new, old in zip(readings, prev_readings)] if prev_readings else readings
         prev_readings = readings
         
-        inputs = readings + normalize_readings(robot.get_lidar()[:32])
-        outputs = net.activate(inputs)
+        image_center = img.shape[1] // 2 if img is not None else 0
+        alignment_factor = ((cx - image_center) / image_center) if line_detected else 0
         
-        if line_detected:
-            stuck_steps = 0
-            line_lost_steps = 0
-            
-            image_center = img.shape[1] // 2  # Horizontal center of the image
-            alignment_factor = (cx - image_center) / image_center  # Normalized alignment factor (-1 to 1)
-            turn_factor = alignment_factor * 0.75  # Adjust turning based on alignment
-            
-            lspeed, rspeed = min_speed, min_speed
-            lspeed += turn_factor
-            rspeed -= turn_factor
-        else:
-            stuck_steps += 1
-            line_lost_steps += 1
-            
-            if line_detected:  # Prioritize searching as soon as the line is detected
-                base_ls, base_rs = line_search(robot)
-            else:
-                base_speed = min_speed if line_detected else outputs[3] * 1.5  # Dynamic base speed
-                base_ls, base_rs = avoidObstacle(readings, base_speed)
-
-            turn_factor = outputs[2] * 0.75
-            speed_factor = outputs[3] * 1.25
-            
-            lspeed = (base_ls + turn_factor) * (1 + speed_factor)
-            rspeed = (base_rs - turn_factor) * (1 + speed_factor)
+        # Use alignment_factor to adjust robot speed
+        # The robot will move straight when aligned with the line, and turn when misaligned
+        lspeed = 0.5 - alignment_factor * 0.2  # Adjust left speed based on alignment
+        rspeed = 0.5 + alignment_factor * 0.2  # Adjust right speed based on alignment
+        
+        # Apply NEAT neural network output for fine-tuning
+        outputs = net.activate(readings + [r / 1.0 for r in robot.get_lidar()[:32]])
+        
+        # Use network outputs to adjust speed further
+        lspeed += outputs[0] * 0.3  # Small adjustment based on NEAT output
+        rspeed += outputs[1] * 0.3  # Small adjustment based on NEAT output
+        
+        # Adjust maximum speeds to avoid excessive turning
+        lspeed = adjust_speed(lspeed)
+        rspeed = adjust_speed(rspeed)
         
         robot.set_speed(lspeed, rspeed)
         
-        reward = get_reward(readings, line_detected, line_lost_steps, stuck_steps)
-        
-
+        reward = get_reward(line_detected, alignment_factor, stuck_steps, line_lost_steps, readings, lspeed, rspeed)
         
         total_reward += reward
-        
-        prev_ls, prev_rs = lspeed, rspeed
         time_step += 1
+        
+        if stuck_steps >= 50:  # Stop early if stuck too long
+            break
     
     coppelia.stop_simulation()
     return total_reward
@@ -143,28 +123,44 @@ def eval_genomes(genomes, config):
 def normalize_readings(readings, min_val=0, max_val=1):
     return [(r - min_val) / (max_val - min_val) for r in readings]
 
-def get_reward(readings, line_detected, line_lost_steps, stuck_steps):
-    reward = 0
+def get_reward(line_detected, alignment_factor, stuck_steps, line_lost_steps, readings, lspeed, rspeed):
+    # Define weights for each component of the reward
+    line_follow_weight = 12
+    alignment_weight = 2
+    obstacle_penalty_multiplier = 0.5  # Reduces reward when obstacles are too close
+    stuck_penalty_multiplier = 0.7    # Reduces reward if stuck for too long
+    line_lost_penalty_multiplier = 0.6  # Reduces reward if line is lost for too long
+    spinning_penalty_multiplier = 0.5   # Reduces reward if spinning excessively
     
-    # Follows the line
-    if line_detected:
-        reward += 12
-    
-    # Obstacles too close
-    if readings[3] < 0.1 or readings[4] < 0.2:
-        reward -= 4
-    elif readings[1] < 0.1 or readings[5] < 0.4:
-        reward -= 3
-    
-    # Stuck for too long
-    if stuck_steps > 10:
-        reward -= 3
-    
-    # Lost the line for too long
-    if line_lost_steps > 15:
-        reward -= 5 
+    # Line following reward
+    line_follow_reward = line_follow_weight if line_detected else 0
 
-    return reward
+    # Alignment reward (if line is detected and alignment factor is small)
+    alignment_reward = alignment_weight if abs(alignment_factor) < 0.2 else 0
+
+    # Obstacle penalty (if any obstacle is too close)
+    obstacle_penalty = 1  # Default multiplier is 1 (no penalty)
+    if readings[3] < 0.1 or readings[4] < 0.2:
+        obstacle_penalty = obstacle_penalty_multiplier
+    elif readings[1] < 0.1 or readings[5] < 0.4:
+        obstacle_penalty = obstacle_penalty_multiplier
+    
+    # Stuck penalty (if the robot has been stuck for too long)
+    stuck_penalty = stuck_penalty_multiplier if stuck_steps > 10 else 1
+
+    # Line lost penalty (if the robot has lost the line for too long)
+    line_lost_penalty = line_lost_penalty_multiplier if line_lost_steps > 15 else 1
+
+    # Spinning penalty (if the robot is spinning too much)
+    spinning_penalty = spinning_penalty_multiplier if abs(lspeed - rspeed) > 1.5 else 1
+
+    # Total reward is the product of all these components
+    total_reward = (
+        line_follow_reward + alignment_reward
+    ) * obstacle_penalty * stuck_penalty * line_lost_penalty * spinning_penalty
+
+    return total_reward
+
 
 def run_neat(config_path):
     
