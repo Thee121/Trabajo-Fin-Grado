@@ -18,4 +18,10 @@ This repository is a fork of https://github.com/jdlope/robotica.git
 
 This is and end of degree project from Computer Engineering in the university Politécnica de Madrid.
 
+The current implementation of the brain has two different modes:
+
+1) FollowLine: main function of the brain, prioritizing it over the other mode of thinking. It slowly learns how to follow a line, learning how to better turn sharp turns and keeping the line centered. It uses the camera as input feed, detecting only black lines at the moment.
+
+2) FindingLine: secondary mode of the brain if a line is note found. It learns automatically the best way to search a space and avoiding obstacles. If a line is found, it automatically passes to such function.
+
 As more things are added and modified, this part of the readme will be slowly changed to reflect such changes.
