@@ -4,7 +4,34 @@ import pickle
 import os
 import cv2
 import sys
-import shutil
+
+
+Checkpoint_Dir = "checkpoints"
+Max_Time_Steps  = 500
+Number_Generations = 100; 
+
+def count_files(directory):
+    try:
+        return sum(1 for item in os.listdir(directory) if os.path.isfile(os.path.join(directory, item)))
+    except FileNotFoundError:
+        print("Directory not found.")
+        return -1
+    
+def load_latest_checkpoint():
+    checkpoint_files = [f for f in os.listdir(Checkpoint_Dir) if f.startswith("neat_checkpoint-")]
+    if not checkpoint_files:
+        return None, 0  # No checkpoints available
+    
+    latest_checkpoint = max(checkpoint_files, key=lambda f: int(f.split('-')[-1]))
+    generation = int(latest_checkpoint.split('-')[-1])
+    return os.path.join(Checkpoint_Dir, latest_checkpoint), generation
+
+def validate_checkpoint_settings(config, population):
+    numGenomes = 0
+         
+    if config.pop_size != population.config.pop_size:  # Example check, adjust based on need
+        print(f"ERROR: Population size mismatch! Checkpoint: {numGenomes}, Current: {config.pop_size}")
+        sys.exit(1)
 
 def process_camera_image(img):
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -35,13 +62,12 @@ def eval_genome(genome, config):
     coppelia.start_simulation()
     
     total_reward = 0
-    max_time_steps = 500
     time_step = 0
     prev_readings = None
     stuck_steps = 0
     line_lost_steps = 0
     
-    while coppelia.is_running() and time_step < max_time_steps:
+    while coppelia.is_running() and time_step < Max_Time_Steps:
         readings = robot.get_sonar()
         img = robot.get_image()
         
@@ -114,57 +140,56 @@ def get_reward(line_detected, alignment_factor, stuck_steps, line_lost_steps, re
     return reward
 
 def run_neat(config_path):
+    config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
+                         neat.DefaultSpeciesSet, neat.DefaultStagnation,
+                         config_path)
+    
+    latest_checkpoint, last_generation = load_latest_checkpoint()
+    if latest_checkpoint:
+        print(f"Resuming from checkpoint: {latest_checkpoint} (Generation {last_generation + 1})")
+        pop = neat.Checkpointer.restore_checkpoint(latest_checkpoint)
+        validate_checkpoint_settings(config, pop)
+    else:
+        pop = neat.Population(config)
+        last_generation = 0
+        print("Starting fresh NEAT training session")
+    
+    pop.add_reporter(neat.StdOutReporter(True))
+    pop.add_reporter(neat.StatisticsReporter())
+    pop.add_reporter(neat.Checkpointer(1, filename_prefix=f"{Checkpoint_Dir}/neat_checkpoint-"))
     
     log_file = open("neat_output.txt", "a")
     sys.stdout = log_file
     
-    config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
-                         neat.DefaultSpeciesSet, neat.DefaultStagnation,
-                         config_path)
-    population = neat.Population(config)
-    print("Starting training session")
-    
-    CHECKPOINT_DIR = "checkpoints"
-    stats = neat.StatisticsReporter()
-    population.add_reporter(neat.StdOutReporter(True))
-    population.add_reporter(stats)
-    population.add_reporter(neat.Checkpointer(1, filename_prefix=f"{CHECKPOINT_DIR}/neat_checkpoint-"))    
-    
-    winner = population.run(eval_genomes, 20) # Runs up to X generations
+    generations_to_run = Number_Generations - last_generation
+    winner = pop.run(eval_genomes, generations_to_run)
     
     sys.stdout = sys.__stdout__
     log_file.close()
     
     with open("best_genome.pkl", "wb") as f:
         pickle.dump(winner, f)
-            
     print("Training completed! Best genome saved.")
 
 def main():
     config_path = "neat_config.txt"
-    checkpoint_dir = "checkpoints"
-
-    if not os.path.exists("best_genome.pkl"):
+    numFiles = count_files(Checkpoint_Dir)
+    
+    
+    if not os.path.exists("best_genome.pkl") and Number_Generations == numFiles:
         print("No trained model found. Cleaning checkpoint directory...")
-        if os.path.exists(checkpoint_dir):
-            for file in os.listdir(checkpoint_dir):
-                file_path = os.path.join(checkpoint_dir, file)
+        if os.path.exists(Checkpoint_Dir):
+            for file in os.listdir(Checkpoint_Dir):
+                file_path = os.path.join(Checkpoint_Dir, file)
                 try:
                     if os.path.isfile(file_path):
                         os.remove(file_path)
-                    elif os.path.isdir(file_path):
-                        shutil.rmtree(file_path)  # If there are subdirectories
                 except Exception as e:
                     print(f"Error deleting {file_path}: {e}")
 
-        print("Checkpoint directory cleaned. Starting new training session.")
-        run_neat(config_path)
-        
-    log_file = open("neat_output.txt", "a")
-    sys.stdout = log_file
+            print("Checkpoint directory cleaned. Starting new training session.")
     
-    sys.stdout = sys.__stdout__
-    log_file.close()
+    run_neat(config_path)
     
     try:
         with open("neat_output.txt", "r") as fr:
@@ -178,18 +203,6 @@ def main():
         print("neat_output file updated and cleaned!")
     except Exception as e:
         print(f"Error while updating logs: {e}")
-
-    try:
-        with open('neat_output.txt', 'r') as fr:
-            lines = fr.readlines()
-
-        with open('neat_output_clean.txt', 'w') as fw:
-            for line in lines:
-                if line.strip('\n') not in ['*** connecting to coppeliasim', '*** getting handles PioneerP3DX', '*** done']:
-                    fw.write(line)
-        print("neat_output file cleaned!")
-    except Exception as e:
-        print(f"Error while cleaning logs: {e}")
 
     if os.path.exists("best_genome.pkl"):
         with open("best_genome.pkl", "rb") as f:
