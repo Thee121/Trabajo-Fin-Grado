@@ -5,7 +5,6 @@ import os
 import cv2
 import sys
 
-
 Checkpoint_Dir = "checkpoints"
 Max_Time_Steps  = 500
 Number_Generations = 20; 
@@ -20,7 +19,7 @@ def count_files(directory):
 def load_latest_checkpoint():
     checkpoint_files = [f for f in os.listdir(Checkpoint_Dir) if f.startswith("neat_checkpoint-")]
     if not checkpoint_files:
-        return None, 0  # No checkpoints available
+        return None, 0
     
     latest_checkpoint = max(checkpoint_files, key=lambda f: int(f.split('-')[-1]))
     generation = int(latest_checkpoint.split('-')[-1])
@@ -29,7 +28,7 @@ def load_latest_checkpoint():
 def validate_checkpoint_settings(config, population):
     numGenomes = 0
          
-    if config.pop_size != population.config.pop_size:  # Example check, adjust based on need
+    if config.pop_size != population.config.pop_size:
         print(f"ERROR: Population size mismatch! Checkpoint: {numGenomes}, Current: {config.pop_size}")
         sys.exit(1)
 
@@ -175,7 +174,6 @@ def main():
     config_path = "neat_config.txt"
     numFiles = count_files(Checkpoint_Dir)
     
-    
     if not os.path.exists("best_genome.pkl"):
         print("No trained model found.")
         if(numFiles != 0):
@@ -192,7 +190,11 @@ def main():
                             print(f"Error deleting {file_path}: {e}")
 
                     print("Checkpoint directory cleaned. Starting new training session.")
-    
+                    
+                if os.path.exists("neat_output_clean.txt"):
+                    os.remove("neat_output_clean.txt")
+        else:
+            print("No checkpoints found")
         run_neat(config_path)
     
     try:
@@ -206,13 +208,20 @@ def main():
         
         print("neat_output file updated and cleaned!")
     except Exception as e:
-        print(f"Error while updating logs: {e}")
+        print(f"Error while updating logs, neat_output file does not exist")
 
+    try:
+        os.remove("neat_output.txt")
+        print("Original neat_output file deleted")
+    
+    except:
+        print("error while trying to delete the neat_output file, no such file exists")
+        
     if os.path.exists("best_genome.pkl"):
         with open("best_genome.pkl", "rb") as f:
             best_genome = pickle.load(f)
 
-        print("Testing best trained genome.")
+        print("Best Genome found! Testing it to find its effectiveness.")
         best_net = neat.nn.FeedForwardNetwork.create(best_genome, neat.Config(
             neat.DefaultGenome, neat.DefaultReproduction,
             neat.DefaultSpeciesSet, neat.DefaultStagnation,
