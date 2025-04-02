@@ -6,9 +6,8 @@ import cv2
 import sys
 
 Checkpoint_Dir = "checkpoints"
-Max_Time_Steps  = 500
-Number_Generations = 20; 
-
+Number_Generations = 20
+max_Training_Time = 600
 def count_files(directory):
     try:
         return sum(1 for item in os.listdir(directory) if os.path.isfile(os.path.join(directory, item)))
@@ -53,23 +52,29 @@ def process_camera_image(img):
     
     return line_detected, cx
 
-def eval_genome(genome, config):
+def eval_genome(genome, config):    
     net = neat.nn.FeedForwardNetwork.create(genome, config)
     coppelia = robotica.Coppelia()
     robot = robotica.P3DX(coppelia.sim, 'PioneerP3DX', True)
-    
+
     coppelia.start_simulation()
-    
+
     total_fitness = 0
-    time_step = 0
     prev_readings = None
+
+    prev_front_sonar = robot.get_sonar()[3]  # Front sonar
+    prev_left_sonar = robot.get_sonar()[1]   # Left side sonar
+    prev_right_sonar = robot.get_sonar()[5]  # Right side sonar
+    prev_rear_sonar = robot.get_sonar()[7]   # Rear sonar
+
     stuck_steps = 0
     line_lost_steps = 0
     
-    while coppelia.is_running() and time_step < Max_Time_Steps:
+    time_step= 0
+
+    while coppelia.is_running() and time_step < max_Training_Time:
         readings = robot.get_sonar()
         img = robot.get_image()
-        
         line_detected, cx = process_camera_image(img)
         readings = [0.5 * new + 0.5 * old for new, old in zip(readings, prev_readings)] if prev_readings else readings
         prev_readings = readings
@@ -77,7 +82,6 @@ def eval_genome(genome, config):
         image_center = img.shape[1] // 2 if img is not None else 0
         alignment_factor = ((cx - image_center) / image_center) if line_detected else 0
         
-        # The robot will move straight when aligned with the line, and turn when misaligned
         lspeed = 0.5 - alignment_factor
         rspeed = 0.5 + alignment_factor
         
@@ -88,23 +92,34 @@ def eval_genome(genome, config):
         
         robot.set_speed(lspeed, rspeed)
         
-        if abs(lspeed) < 0.05 and abs(rspeed) < 0.05:
+        front_sonar = readings[3]  # Front sonar
+        left_sonar = readings[1]   # Left side sonar
+        right_sonar = readings[5]  # Right side sonar
+        rear_sonar = readings[7]   # Rear sonar
+
+        if (abs(front_sonar - prev_front_sonar) < 0.01 and 
+            abs(rear_sonar - prev_rear_sonar) < 0.01 and 
+            abs(left_sonar - prev_left_sonar) < 0.01 and 
+            abs(right_sonar - prev_right_sonar) < 0.01):
             stuck_steps += 1
         else:
             stuck_steps = 0
-        
+
         if not line_detected:
             line_lost_steps += 1
         else:
-            line_lost_steps = 0  # Reset if the line is found
-        
+            line_lost_steps = 0 
+
+        prev_front_sonar = front_sonar
+        prev_left_sonar = left_sonar
+        prev_right_sonar = right_sonar
+        prev_rear_sonar = rear_sonar
+
         fitness = calculate_fitness(line_detected, alignment_factor, stuck_steps, line_lost_steps, readings, lspeed, rspeed)
         total_fitness += fitness
         time_step += 1
-    
     coppelia.stop_simulation()
     return total_fitness
-
 
 def eval_genomes(genomes, config):
     for genome_id, genome in genomes:
@@ -113,35 +128,42 @@ def eval_genomes(genomes, config):
 
 def calculate_fitness(line_detected, alignment_factor, stuck_steps, line_lost_steps, readings, lspeed, rspeed):
     fitness = 0
-    
+    avg_speed = (lspeed + rspeed) / 2
+   
     if line_detected:
-        fitness += 10 * (1 - abs(alignment_factor))
-        # Extra fitness for good alignment
-        if abs(alignment_factor) < 0.1:  
-            fitness += 3
+            # High reward for staying well aligned
+            fitness += 10 * (1 - abs(alignment_factor))  # More weight on alignment
+            if abs(alignment_factor) < 0.1:  
+                fitness += 5  # Bonus for near-perfect alignment
+            
+            # Reward forward movement while aligned
+            if avg_speed > 0:
+                fitness += avg_speed
+
     else:
-        fitness -= 2 * (line_lost_steps / 20) #20 simulation steps in a second
+        # Penalize losing the line
+        fitness -= 5 * (line_lost_steps / 20)  
+
     
     if readings[3] < 0.1 or readings[4] < 0.2: #Front sensors
         fitness *= 0.5
     elif readings[1] < 0.1 or readings[5] < 0.4: #Side sensors
         fitness *= 0.7 
     elif readings[6] < 0.1 or readings[7] < 0.2:  # Back sensors
-        reward *= 0.5
+        fitness *= 0.5
     else:
         fitness += 2  # Clear Path
     
     if stuck_steps > 10:
         fitness *= 0.5
-        
-    if line_detected:
-        fitness += 5 * (1 - (line_lost_steps / max(float('inf'), stuck_steps)))  
-    else:
-        fitness -= 1
     
     # Penalize excessive turning
-    if abs(lspeed - rspeed) > 1.5:
-        fitness *= 0.7  
+    if abs(lspeed - rspeed) > 1:
+        fitness *= 0.5
+ 
+    # Penalize backward movement
+    if avg_speed < 0:
+        fitness *= 0.5  # Reduce fitness if moving backward
         
     return fitness
 
