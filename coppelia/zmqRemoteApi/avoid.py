@@ -8,7 +8,7 @@ import sys
 
 Checkpoint_Dir = "checkpoints"
 Max_Time_Steps  = 500
-Number_Generations = 100; 
+Number_Generations = 20; 
 
 def count_files(directory):
     try:
@@ -176,20 +176,24 @@ def main():
     numFiles = count_files(Checkpoint_Dir)
     
     
-    if not os.path.exists("best_genome.pkl") and Number_Generations == numFiles:
-        print("No trained model found. Cleaning checkpoint directory...")
-        if os.path.exists(Checkpoint_Dir):
-            for file in os.listdir(Checkpoint_Dir):
-                file_path = os.path.join(Checkpoint_Dir, file)
-                try:
-                    if os.path.isfile(file_path):
-                        os.remove(file_path)
-                except Exception as e:
-                    print(f"Error deleting {file_path}: {e}")
+    if not os.path.exists("best_genome.pkl"):
+        print("No trained model found.")
+        if(numFiles != 0):
+            print("There are checkpoint files present")
+            if(Number_Generations == numFiles):
+                print("All generations have been run. Cleaning checkpoint directory to train a fresh best genome")
+                if os.path.exists(Checkpoint_Dir):
+                    for file in os.listdir(Checkpoint_Dir):
+                        file_path = os.path.join(Checkpoint_Dir, file)
+                        try:
+                            if os.path.isfile(file_path):
+                                os.remove(file_path)
+                        except Exception as e:
+                            print(f"Error deleting {file_path}: {e}")
 
-            print("Checkpoint directory cleaned. Starting new training session.")
+                    print("Checkpoint directory cleaned. Starting new training session.")
     
-    run_neat(config_path)
+        run_neat(config_path)
     
     try:
         with open("neat_output.txt", "r") as fr:
