@@ -60,7 +60,7 @@ def eval_genome(genome, config):
     
     coppelia.start_simulation()
     
-    total_reward = 0
+    total_fitness = 0
     time_step = 0
     prev_readings = None
     stuck_steps = 0
@@ -81,7 +81,6 @@ def eval_genome(genome, config):
         lspeed = 0.5 - alignment_factor
         rspeed = 0.5 + alignment_factor
         
-        # Apply NEAT neural network output for fine-tuning
         outputs = net.activate(readings + [r / 1.0 for r in robot.get_lidar()[:32]])
         
         lspeed += outputs[0]
@@ -89,54 +88,62 @@ def eval_genome(genome, config):
         
         robot.set_speed(lspeed, rspeed)
         
-        reward = get_reward(line_detected, alignment_factor, stuck_steps, line_lost_steps, readings, lspeed, rspeed)
-        total_reward += reward
+        if abs(lspeed) < 0.05 and abs(rspeed) < 0.05:
+            stuck_steps += 1
+        else:
+            stuck_steps = 0
+        
+        if not line_detected:
+            line_lost_steps += 1
+        else:
+            line_lost_steps = 0  # Reset if the line is found
+        
+        fitness = calculate_fitness(line_detected, alignment_factor, stuck_steps, line_lost_steps, readings, lspeed, rspeed)
+        total_fitness += fitness
         time_step += 1
     
     coppelia.stop_simulation()
-    return total_reward
+    return total_fitness
+
 
 def eval_genomes(genomes, config):
     for genome_id, genome in genomes:
         genome.fitness = eval_genome(genome, config)
         print(f"Genome {genome_id} fitness: {genome.fitness}")
 
-def get_reward(line_detected, alignment_factor, stuck_steps, line_lost_steps, readings, lspeed, rspeed):
-    reward = 0
+def calculate_fitness(line_detected, alignment_factor, stuck_steps, line_lost_steps, readings, lspeed, rspeed):
+    fitness = 0
     
     if line_detected:
-        reward += 12 * (1 - abs(alignment_factor))
-        # Extra reward for good alignment
+        fitness += 10 * (1 - abs(alignment_factor))
+        # Extra fitness for good alignment
         if abs(alignment_factor) < 0.1:  
-            reward += 3
-    # Apply a penalty that scales with the time lost
+            fitness += 3
     else:
-        reward -= 2 * (line_lost_steps / 20)
+        fitness -= 2 * (line_lost_steps / 20) #20 simulation steps in a second
     
-    # Reduce reward for critical obstacles in front
-    if readings[3] < 0.1 or readings[4] < 0.2:
+    if readings[3] < 0.1 or readings[4] < 0.2: #Front sensors
+        fitness *= 0.5
+    elif readings[1] < 0.1 or readings[5] < 0.4: #Side sensors
+        fitness *= 0.7 
+    elif readings[6] < 0.1 or readings[7] < 0.2:  # Back sensors
         reward *= 0.5
-    # Less severe obstacle avoidance
-    elif readings[1] < 0.1 or readings[5] < 0.4:
-        reward *= 0.7  
-    # Small reward for clear path
     else:
-        reward += 2  
+        fitness += 2  # Clear Path
     
     if stuck_steps > 10:
-        reward *= 0.5
+        fitness *= 0.5
         
-    # Time robot stays on track
     if line_detected:
-        reward += 5 * (1 - (line_lost_steps / max(float('inf'), stuck_steps)))  
+        fitness += 5 * (1 - (line_lost_steps / max(float('inf'), stuck_steps)))  
     else:
-        reward -= 1
+        fitness -= 1
     
     # Penalize excessive turning
     if abs(lspeed - rspeed) > 1.5:
-        reward *= 0.8  
-    
-    return reward
+        fitness *= 0.7  
+        
+    return fitness
 
 def run_neat(config_path):
     config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
