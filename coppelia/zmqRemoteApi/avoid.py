@@ -6,30 +6,17 @@ import cv2
 import sys
 
 Checkpoint_Dir = "checkpoints"
-Number_Generations = 20
-max_Training_Time = 600
+
+# Modify the following variables to fine tune the code.
+Number_Generations = 10
+max_Training_Time = 40 # 20 steps equal one second
+
 def count_files(directory):
     try:
         return sum(1 for item in os.listdir(directory) if os.path.isfile(os.path.join(directory, item)))
     except FileNotFoundError:
         print("Directory not found.")
         return -1
-    
-def load_latest_checkpoint():
-    checkpoint_files = [f for f in os.listdir(Checkpoint_Dir) if f.startswith("neat_checkpoint-")]
-    if not checkpoint_files:
-        return None, 0
-    
-    latest_checkpoint = max(checkpoint_files, key=lambda f: int(f.split('-')[-1]))
-    generation = int(latest_checkpoint.split('-')[-1])
-    return os.path.join(Checkpoint_Dir, latest_checkpoint), generation
-
-def validate_checkpoint_settings(config, population):
-    numGenomes = 0
-         
-    if config.pop_size != population.config.pop_size:
-        print(f"ERROR: Population size mismatch! Checkpoint: {numGenomes}, Current: {config.pop_size}")
-        sys.exit(1)
 
 def process_camera_image(img):
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -129,72 +116,72 @@ def eval_genomes(genomes, config):
 def calculate_fitness(line_detected, alignment_factor, stuck_steps, line_lost_steps, readings, lspeed, rspeed):
     fitness = 0
     avg_speed = (lspeed + rspeed) / 2
-   
+    turn_amount = abs(lspeed - rspeed)
+
+    # === 1. Following the line well ===
     if line_detected:
-            # High reward for staying well aligned
-            fitness += 10 * (1 - abs(alignment_factor))  # More weight on alignment
-            if abs(alignment_factor) < 0.1:  
-                fitness += 5  # Bonus for near-perfect alignment
-            
-            # Reward forward movement while aligned
-            if avg_speed > 0:
-                fitness += avg_speed
+        alignment_score = 1 - abs(alignment_factor)
+        fitness += 20 * alignment_score
+        if abs(alignment_factor) < 0.1: # Keeps the robot centered
+            fitness += 5
 
+        if avg_speed > 0:  # Forward motion when tracking the line
+            fitness += 5 
     else:
-        # Penalize losing the line
-        fitness -= 5 * (line_lost_steps / 20)  
+        fitness -= 5 * (line_lost_steps / 20) 
 
-    
-    if readings[3] < 0.1 or readings[4] < 0.2: #Front sensors
-        fitness *= 0.5
-    elif readings[1] < 0.1 or readings[5] < 0.4: #Side sensors
-        fitness *= 0.7 
-    elif readings[6] < 0.1 or readings[7] < 0.2:  # Back sensors
-        fitness *= 0.5
+    # === 2. Obstacle avoidance ===
+    if readings[3] < 0.1 or readings[4] < 0.2:  # Front too close
+        fitness *= 0.4
+    elif readings[1] < 0.1 or readings[5] < 0.4:  # Sides too close
+        fitness *= 0.6
+    elif readings[6] < 0.1 or readings[7] < 0.2:  # Back too close
+        fitness *= 0.6
     else:
-        fitness += 2  # Clear Path
-    
+        fitness += 3  # Clean path bonus
+
+    # === 3. Stuck penalty ===
     if stuck_steps > 10:
         fitness *= 0.5
-    
-    # Penalize excessive turning
-    if abs(lspeed - rspeed) > 1:
-        fitness *= 0.5
- 
-    # Penalize backward movement
-    if avg_speed < 0:
-        fitness *= 0.5  # Reduce fitness if moving backward
+
+    # === 4. Movement style penalties ===
+    if turn_amount > 1.0: # Goes in circles
+        fitness *= 0.7
         
+    if line_detected and abs(alignment_factor) < 0.2 and avg_speed > 0.2: #Smooth forward tracking
+        fitness += 3 
+        
+    if avg_speed < 0: # Backwards movement
+        fitness *= 0.5  
+    elif avg_speed < 0.1: # Barely moving forward
+        fitness *= 0.7 
+    else: # Moving forward decently
+        fitness += 2
+
+
     return fitness
 
 def run_neat(config_path):
     config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                          neat.DefaultSpeciesSet, neat.DefaultStagnation,
                          config_path)
-    
-    latest_checkpoint, last_generation = load_latest_checkpoint()
-    if latest_checkpoint:
-        print(f"Resuming from checkpoint: {latest_checkpoint} (Generation {last_generation + 1})")
+
+    num_files = count_files(Checkpoint_Dir)
+
+    if num_files > 0:
+        latest_checkpoint = os.path.join(Checkpoint_Dir, f"neat_checkpoint-{num_files - 1}")
+        print(f"Resuming from checkpoint: {latest_checkpoint}")
         pop = neat.Checkpointer.restore_checkpoint(latest_checkpoint)
-        validate_checkpoint_settings(config, pop)
     else:
+        print("Starting a fresh training session.")
         pop = neat.Population(config)
-        last_generation = 0
-        print("Starting fresh NEAT training session")
-    
+
     pop.add_reporter(neat.StdOutReporter(True))
     pop.add_reporter(neat.StatisticsReporter())
     pop.add_reporter(neat.Checkpointer(1, filename_prefix=f"{Checkpoint_Dir}/neat_checkpoint-"))
-    
-    log_file = open("neat_output.txt", "a")
-    sys.stdout = log_file
-    
-    generations_to_run = Number_Generations - last_generation
-    winner = pop.run(eval_genomes, generations_to_run)
-    
-    sys.stdout = sys.__stdout__
-    log_file.close()
-    
+
+    winner = pop.run(eval_genomes, Number_Generations)
+
     with open("best_genome.pkl", "wb") as f:
         pickle.dump(winner, f)
     print("Training completed! Best genome saved.")
@@ -202,73 +189,72 @@ def run_neat(config_path):
 def main():
     config_path = "neat_config.txt"
     numFiles = count_files(Checkpoint_Dir)
-    
-    if not os.path.exists("best_genome.pkl"):
-        print("No trained model found.")
-        if(numFiles != 0):
-            print("There are checkpoint files present")
-            if(Number_Generations == numFiles):
-                print("All generations have been run. Cleaning checkpoint directory to train a fresh best genome")
-                if os.path.exists(Checkpoint_Dir):
-                    for file in os.listdir(Checkpoint_Dir):
-                        file_path = os.path.join(Checkpoint_Dir, file)
-                        try:
-                            if os.path.isfile(file_path):
-                                os.remove(file_path)
-                        except Exception as e:
-                            print(f"Error deleting {file_path}: {e}")
+    neat_output_path = "output/neat_output.txt"
 
-                    print("Checkpoint directory cleaned. Starting new training session.")
-                    
-                if os.path.exists("neat_output_clean.txt"):
-                    os.remove("neat_output_clean.txt")
-        else:
-            print("No checkpoints found")
-        run_neat(config_path)
-    
-    try:
-        with open("neat_output.txt", "r") as fr:
-            lines = fr.readlines()
-
-        with open("neat_output_clean.txt", "a") as fw:
-            for line in lines:
-                if line.strip('\n') not in ['*** connecting to coppeliasim', '*** getting handles PioneerP3DX', '*** done']:
-                    fw.write(line)
-        
-        print("neat_output file updated and cleaned!")
-    except Exception as e:
-        print(f"Error while updating logs, neat_output file does not exist")
-
-    try:
-        os.remove("neat_output.txt")
-        print("Original neat_output file deleted")
-    
-    except:
-        print("error while trying to delete the neat_output file, no such file exists")
-        
+    # Step 1: Check for best_genome.pkl
     if os.path.exists("best_genome.pkl"):
-        with open("best_genome.pkl", "rb") as f:
-            best_genome = pickle.load(f)
+        answer = input("A trained model was found. Do you want to test it? (yes/no): ").strip().lower()
+        if answer == "yes":
+            with open("best_genome.pkl", "rb") as f:
+                best_genome = pickle.load(f)
 
-        print("Best Genome found! Testing it to find its effectiveness.")
-        best_net = neat.nn.FeedForwardNetwork.create(best_genome, neat.Config(
-            neat.DefaultGenome, neat.DefaultReproduction,
-            neat.DefaultSpeciesSet, neat.DefaultStagnation,
-            config_path
-        ))
+            print("Testing best genome...")
+            best_net = neat.nn.FeedForwardNetwork.create(best_genome, neat.Config(
+                neat.DefaultGenome, neat.DefaultReproduction,
+                neat.DefaultSpeciesSet, neat.DefaultStagnation,
+                config_path
+            ))
 
-        coppelia = robotica.Coppelia()
-        robot = robotica.P3DX(coppelia.sim, 'PioneerP3DX')
-        coppelia.start_simulation()
+            coppelia = robotica.Coppelia()
+            robot = robotica.P3DX(coppelia.sim, 'PioneerP3DX')
+            coppelia.start_simulation()
 
-        while coppelia.is_running():
-            readings = robot.get_sonar()
-            lidar_data = robot.get_lidar()
-            outputs = best_net.activate(readings + lidar_data[:32])
-            robot.set_speed(outputs[0], outputs[1])
+            while coppelia.is_running():
+                readings = robot.get_sonar()
+                lidar_data = robot.get_lidar()
+                outputs = best_net.activate(readings + lidar_data[:32])
+                robot.set_speed(outputs[0], outputs[1])
 
-        coppelia.stop_simulation()
-        print("Best genome test completed!")
+            coppelia.stop_simulation()
+            print("Best genome test completed!")
+            return  # End program after testing
+        
+        else:
+            answer2 = input("Do you want to delete the best_genome? (yes/no): ").strip().lower()
+            
+            if answer2 == "yes":
+                os.remove("best_genome.pkl")
+
+
+    # Step 2: Check for checkpoint files
+    if numFiles == 0:
+        print("No checkpoints found. Starting new training session.")
+        run_neat(config_path)
+        return
+
+    # Step 3: Ask if user wants to continue training from last checkpoint
+    print("Checkpoint files detected.")
+    answer = input("Do you want to continue training from the last checkpoint? (yes/no): ").strip().lower()
+    if answer == "yes":
+        run_neat(config_path)
+    else:
+        # Delete all checkpoint files and neat_output file
+        print("Deleting existing checkpoints and starting fresh training.")
+        if os.path.exists(Checkpoint_Dir):
+            for file in os.listdir(Checkpoint_Dir):
+                file_path = os.path.join(Checkpoint_Dir, file)
+                try:
+                    if os.path.isfile(file_path):
+                        os.remove(file_path)
+                except Exception as e:
+                    print(f"Error deleting {file_path}: {e}")
+        if os.path.exists(neat_output_path):
+            try:
+                os.remove(neat_output_path)
+            except Exception as e:
+                print(f"Error deleting neat_output.txt: {e}")
+
+        run_neat(config_path)
 
 if __name__ == '__main__':
     main()
