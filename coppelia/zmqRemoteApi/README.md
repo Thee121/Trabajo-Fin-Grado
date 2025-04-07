@@ -20,6 +20,6 @@ Firtly, add the Python modules provided by CoppeliaSim to the ``PYTHONPATH`` var
 
 Start the CoppeliaSim simulator and load one of the scenes provided by this repository with a Pioneer P3DX robot or create a new scene that includes this robot.  (The label for the robot has to be ``PioneerP3DX``, otherwise the label for the robot should be modified in the external script.)
 
-Read carefully the ``avoid.py`` file, which is the main class of the robot controller, and run the script from the command line.
+Read carefully the ``avoid.py`` file, which is the main class of the robot controller, and run the script from the command line. Double check that the "Number_Generations" and "max_Training_Time" variables inside the file and ``neat_config.txt`` are to your liking and run the file.
 
-The controller implements a heuristic, rule-based controller.  Note that the thresholds are fine-tuned for the correct robot operation over generations using neat-capable libraries.
+The ``treatment.py`` file contains a basic script to read all the information from the checkpoints, dumping it all in the ``robot_info`` file present in output.

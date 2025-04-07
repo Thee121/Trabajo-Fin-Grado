@@ -39,6 +39,7 @@ class Coppelia():
         self.default_idle_fps = self.sim.getInt32Param(self.sim.intparam_idle_fps)
         self.sim.setInt32Param(self.sim.intparam_idle_fps, 0)
         self.sim.startSimulation()
+        self.sim.setBoolProperty(self.sim.handle_app, 'displayEnabled', False )
 
     def stop_simulation(self):
         # print('*** stopping simulation')

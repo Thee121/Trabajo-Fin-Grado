@@ -28,10 +28,9 @@ Take into consideration that, how the calculate_fitness() method is implemented,
 
 ALL possible variables that could be modified are easily modifiable, either at the beginning of avoid.py or at neat_config.txt.
 
-The main class contains basic functionality aside from running the main function of the project. The program detects if there are checkpoints or a best_genome file present.
+The main class contains extra functionality aside from actually running the main function of the project. The program logic is as follows:
+1) Detects if a best_genome is present. If there is, asks user if it wants to train it. If the user answers with "yes", the program runs the genome. If the user answers negatively, the program advances to step 2.
+2) The program checks if there are any checkpoints in the folder. If there aren't, a new fresh session starts. If there are checkpoints present, the program advances to step 3
+3) Asks if you want to continue from the previous checkpoint. If the user answers with "yes", the program will continue from the previous checkpoint. If the users answers "no", a fresh NEAT training session will stasrt
 
-it will start a fresh NEAT training session.
-
-All the output of the neat library are dumped in the neat_output file after each checkpoint. Only until all the generations are ran and a best_genome is generated, then the code will automatically clean and present a better version in the neat_output_clean file, deleting the original neat_output.
-
-This functionality is present such that the user does not have to run all the generations in one go or if there is a problem, it is able to resume from the latest checkpoint possible. It is noted that the neat_config OR the modifiable variables can not be changed in between continuations of generations. In other words the program will fail if it detects a change in the settings or modifiable variables and will only continue training if the values are changed to match.
+All the checkpoints of the neat library are dumped in the checkpoint directory after each checkpoint. If you want to see the information from all the checkpoints, you can run the treatment.py file to output all the information to robot_info.txt

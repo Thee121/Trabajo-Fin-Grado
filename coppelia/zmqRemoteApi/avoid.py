@@ -3,13 +3,12 @@ import robotica
 import pickle
 import os
 import cv2
-import sys
 
 Checkpoint_Dir = "checkpoints"
 
-# Modify the following variables to fine tune the code.
-Number_Generations = 10
-max_Training_Time = 40 # 20 steps equal one second
+# Modify the following variables to fine tune the training.
+Number_Generations = 20
+max_Training_Time = 600 # 20 steps equal one second
 
 def count_files(directory):
     try:
@@ -43,7 +42,6 @@ def eval_genome(genome, config):
     net = neat.nn.FeedForwardNetwork.create(genome, config)
     coppelia = robotica.Coppelia()
     robot = robotica.P3DX(coppelia.sim, 'PioneerP3DX', True)
-
     coppelia.start_simulation()
 
     total_fitness = 0
@@ -118,46 +116,40 @@ def calculate_fitness(line_detected, alignment_factor, stuck_steps, line_lost_st
     avg_speed = (lspeed + rspeed) / 2
     turn_amount = abs(lspeed - rspeed)
 
-    # === 1. Following the line well ===
+    # === 1. Line following: alignment, presence, and speed ===
     if line_detected:
         alignment_score = 1 - abs(alignment_factor)
         fitness += 20 * alignment_score
-        if abs(alignment_factor) < 0.1: # Keeps the robot centered
+
+        if abs(alignment_factor) < 0.1:  # Bonus for being centered
             fitness += 5
 
-        if avg_speed > 0:  # Forward motion when tracking the line
-            fitness += 5 
+        if avg_speed > 0:  # Reward forward motion while on the line
+            fitness += avg_speed * 1.5
     else:
-        fitness -= 5 * (line_lost_steps / 20) 
+        # Penalize time spent off the line
+        fitness -= 50 + (line_lost_steps * 10)
 
-    # === 2. Obstacle avoidance ===
-    if readings[3] < 0.1 or readings[4] < 0.2:  # Front too close
+    # === 2. Obstacle avoidance using sonar readings ===
+    if readings[3] < 0.1 or readings[4] < 0.2:  # Front sensors
         fitness *= 0.4
-    elif readings[1] < 0.1 or readings[5] < 0.4:  # Sides too close
+    elif readings[1] < 0.1 or readings[5] < 0.4:  # Side sensors
         fitness *= 0.6
-    elif readings[6] < 0.1 or readings[7] < 0.2:  # Back too close
-        fitness *= 0.6
-    else:
-        fitness += 3  # Clean path bonus
+    elif readings[6] < 0.1 or readings[7] < 0.2:  # Rear sensors
+        fitness *= 0.4
 
     # === 3. Stuck penalty ===
     if stuck_steps > 10:
         fitness *= 0.5
 
-    # === 4. Movement style penalties ===
-    if turn_amount > 1.0: # Goes in circles
-        fitness *= 0.7
-        
-    if line_detected and abs(alignment_factor) < 0.2 and avg_speed > 0.2: #Smooth forward tracking
-        fitness += 3 
-        
-    if avg_speed < 0: # Backwards movement
-        fitness *= 0.5  
-    elif avg_speed < 0.1: # Barely moving forward
-        fitness *= 0.7 
-    else: # Moving forward decently
-        fitness += 2
+    # === 4. Movement quality penalties ===
+    if turn_amount > 1.5:
+        fitness *= 0.6  # Penalty for spinning too much
 
+    if avg_speed < 0:  # Moving backwards
+        fitness *= 0.4
+    elif avg_speed < 0.1:  # Barely moving
+        fitness *= 0.6
 
     return fitness
 
