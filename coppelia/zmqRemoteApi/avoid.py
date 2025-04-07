@@ -7,8 +7,8 @@ import cv2
 Checkpoint_Dir = "checkpoints"
 
 # Modify the following variables to fine tune the training.
-Number_Generations = 20
-max_Training_Time = 600 # 20 steps equal one second
+Number_Generations = 50
+max_Training_Time = 300 # 20 steps equal one second
 
 def count_files(directory):
     try:
@@ -44,9 +44,6 @@ def eval_genome(genome, config):
     robot = robotica.P3DX(coppelia.sim, 'PioneerP3DX', True)
     coppelia.start_simulation()
 
-    total_fitness = 0
-    prev_readings = None
-
     prev_front_sonar = robot.get_sonar()[3]  # Front sonar
     prev_left_sonar = robot.get_sonar()[1]   # Left side sonar
     prev_right_sonar = robot.get_sonar()[5]  # Right side sonar
@@ -55,25 +52,20 @@ def eval_genome(genome, config):
     stuck_steps = 0
     line_lost_steps = 0
     
+    total_fitness = 0
     time_step= 0
 
     while coppelia.is_running() and time_step < max_Training_Time:
         readings = robot.get_sonar()
         img = robot.get_image()
         line_detected, cx = process_camera_image(img)
-        readings = [0.5 * new + 0.5 * old for new, old in zip(readings, prev_readings)] if prev_readings else readings
-        prev_readings = readings
         
         image_center = img.shape[1] // 2 if img is not None else 0
         alignment_factor = ((cx - image_center) / image_center) if line_detected else 0
         
-        lspeed = 0.5 - alignment_factor
-        rspeed = 0.5 + alignment_factor
-        
-        outputs = net.activate(readings + [r / 1.0 for r in robot.get_lidar()[:32]])
-        
-        lspeed += outputs[0]
-        rspeed += outputs[1]
+        outputs = net.activate(readings)
+        lspeed = outputs[0]
+        rspeed = outputs[1]
         
         robot.set_speed(lspeed, rspeed)
         
@@ -103,6 +95,7 @@ def eval_genome(genome, config):
         fitness = calculate_fitness(line_detected, alignment_factor, stuck_steps, line_lost_steps, readings, lspeed, rspeed)
         total_fitness += fitness
         time_step += 1
+        
     coppelia.stop_simulation()
     return total_fitness
 
@@ -116,20 +109,24 @@ def calculate_fitness(line_detected, alignment_factor, stuck_steps, line_lost_st
     avg_speed = (lspeed + rspeed) / 2
     turn_amount = abs(lspeed - rspeed)
 
-    # === 1. Line following: alignment, presence, and speed ===
     if line_detected:
         alignment_score = 1 - abs(alignment_factor)
-        fitness += 20 * alignment_score
+        abs_alignment_factor = abs(alignment_factor)
+
+        fitness += 50 * alignment_score
 
         if abs(alignment_factor) < 0.1:  # Bonus for being centered
-            fitness += 5
+            fitness += 10
 
         if avg_speed > 0:  # Reward forward motion while on the line
-            fitness += avg_speed * 1.5
+            fitness += avg_speed * 2
     else:
         # Penalize time spent off the line
-        fitness -= 50 + (line_lost_steps * 10)
-
+        fitness -= (20 + line_lost_steps * 5)
+    
+    if line_detected and abs(abs_alignment_factor) > 0.8:
+        fitness -= abs(abs_alignment_factor) * 10
+        
     # === 2. Obstacle avoidance using sonar readings ===
     if readings[3] < 0.1 or readings[4] < 0.2:  # Front sensors
         fitness *= 0.4
@@ -140,7 +137,7 @@ def calculate_fitness(line_detected, alignment_factor, stuck_steps, line_lost_st
 
     # === 3. Stuck penalty ===
     if stuck_steps > 10:
-        fitness *= 0.5
+        fitness *= 0.4
 
     # === 4. Movement quality penalties ===
     if turn_amount > 1.5:
@@ -203,8 +200,7 @@ def main():
 
             while coppelia.is_running():
                 readings = robot.get_sonar()
-                lidar_data = robot.get_lidar()
-                outputs = best_net.activate(readings + lidar_data[:32])
+                outputs = best_net.activate(readings)
                 robot.set_speed(outputs[0], outputs[1])
 
             coppelia.stop_simulation()

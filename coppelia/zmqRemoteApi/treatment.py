@@ -1,9 +1,13 @@
 import os
 import neat
 import statistics
+import matplotlib.pyplot as plt
 
 Checkpoint_Dir = "checkpoints"
 Output_File = "output/robot_info"
+Output_Graphs_Dir = "output"
+
+os.makedirs(Output_Graphs_Dir, exist_ok=True)
 
 def count_files(directory):
     return len([name for name in os.listdir(directory) if os.path.isfile(os.path.join(directory, name))])
@@ -15,7 +19,11 @@ def main():
         print("No checkpoint files found. Exiting treatment.")
         return
 
-    # Clear the output file if it exists
+    avg_fitnesses = []
+    std_fitnesses = []
+    best_fitnesses = []
+    generations = []
+
     with open(Output_File, "w") as out_file:
         out_file.write("Checkpoint Summary:\n\n")
 
@@ -31,6 +39,11 @@ def main():
                 std_fitness = statistics.stdev(fitnesses) if len(fitnesses) > 1 else 0
                 extinct = len(pop.species.species) == 0
 
+                avg_fitnesses.append(avg_fitness)
+                std_fitnesses.append(std_fitness)
+                best_fitnesses.append(best_fitness)
+                generations.append(pop.generation)
+
                 with open(Output_File, "a") as out_file:
                     out_file.write(f"Checkpoint: neat_checkpoint-{i}\n")
                     out_file.write(f"Generation: {pop.generation}\n")
@@ -44,6 +57,20 @@ def main():
 
             except Exception as e:
                 print(f"Error reading checkpoint {checkpoint_path}: {e}")
+
+    plot_graph(generations, avg_fitnesses, "Average Fitness Through Generations", "Generation", "Average Fitness", "avg_fitness.png")
+    plot_graph(generations, std_fitnesses, "Standard Deviation Through Generations", "Generation", "Standard Deviation", "std_deviation.png")
+    plot_graph(generations, best_fitnesses, "Best Fitnesses Through the Generations", "Generation", "Best Fitnesses", "best_fitnesses.png")
     
+def plot_graph(x_data, y_data, title, xlabel, ylabel, filename):
+    plt.figure()
+    plt.plot(x_data, y_data, marker='o', color='b', label=ylabel)
+    plt.title(title)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.grid(True)
+    plt.savefig(os.path.join(Output_Graphs_Dir, filename))
+    plt.close()
+
 if __name__ == '__main__':
     main()
