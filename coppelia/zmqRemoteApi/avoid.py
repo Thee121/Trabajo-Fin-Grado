@@ -3,12 +3,13 @@ import robotica
 import pickle
 import os
 import cv2
+import numpy as np
 
 Checkpoint_Dir = "checkpoints"
 
 # Modify the following variables to fine tune the training.
-Number_Generations = 50
-max_Training_Time = 300 # 20 steps equal one second
+Number_Generations = 25
+max_Training_Time = 400 # 20 steps equal one second
 
 def count_files(directory):
     try:
@@ -18,25 +19,37 @@ def count_files(directory):
         return -1
 
 def process_camera_image(img):
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    _, thresh = cv2.threshold(gray, 50, 100, cv2.THRESH_BINARY_INV)  # Detect black lines
-    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # Convert BGR image to HSV
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     
-    _, img_width = gray.shape
+    # Define red color range in HSV (red spans across low and high hue values)
+    lower_red1 = np.array([0, 70, 50])
+    upper_red1 = np.array([10, 255, 255])
+    lower_red2 = np.array([170, 70, 50])
+    upper_red2 = np.array([180, 255, 255])
     
+    # Threshold the HSV image to get only red colors
+    mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
+    mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
+    mask = cv2.bitwise_or(mask1, mask2)
+
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    _, img_width = mask.shape
     line_detected = False
     cx = None
-    
+
     for contour in contours:
         _, _, w, _ = cv2.boundingRect(contour)
-        if w >= img_width // 5:  # Ensure the line is on the floor and fully in view
+        if w >= img_width // 5:  # Ensure the line is large enough
             M = cv2.moments(contour)
             if M["m00"] != 0:
                 cx = int(M["m10"] / M["m00"])
                 line_detected = True
                 break
-    
+
     return line_detected, cx
+
 
 def eval_genome(genome, config):    
     net = neat.nn.FeedForwardNetwork.create(genome, config)
@@ -44,17 +57,13 @@ def eval_genome(genome, config):
     robot = robotica.P3DX(coppelia.sim, 'PioneerP3DX', True)
     coppelia.start_simulation()
 
-    prev_front_sonar = robot.get_sonar()[3]  # Front sonar
-    prev_left_sonar = robot.get_sonar()[1]   # Left side sonar
-    prev_right_sonar = robot.get_sonar()[5]  # Right side sonar
-    prev_rear_sonar = robot.get_sonar()[7]   # Rear sonar
-
-    stuck_steps = 0
     line_lost_steps = 0
-    
-    total_fitness = 0
+    backwards_steps = 0
+    turn_steps = 0
     time_step= 0
 
+    total_fitness = 0
+    
     while coppelia.is_running() and time_step < max_Training_Time:
         readings = robot.get_sonar()
         img = robot.get_image()
@@ -66,33 +75,30 @@ def eval_genome(genome, config):
         outputs = net.activate(readings)
         lspeed = outputs[0]
         rspeed = outputs[1]
-        
         robot.set_speed(lspeed, rspeed)
         
-        front_sonar = readings[3]  # Front sonar
-        left_sonar = readings[1]   # Left side sonar
-        right_sonar = readings[5]  # Right side sonar
-        rear_sonar = readings[7]   # Rear sonar
-
-        if (abs(front_sonar - prev_front_sonar) < 0.01 and 
-            abs(rear_sonar - prev_rear_sonar) < 0.01 and 
-            abs(left_sonar - prev_left_sonar) < 0.01 and 
-            abs(right_sonar - prev_right_sonar) < 0.01):
-            stuck_steps += 1
-        else:
-            stuck_steps = 0
-
+        avg_speed = (lspeed + rspeed) / 2
+        turn_amount = abs(lspeed - rspeed)
+        
         if not line_detected:
             line_lost_steps += 1
         else:
-            line_lost_steps = 0 
+            line_lost_steps = 0
+            
+        if(avg_speed < 0):
+            backwards_steps += 1
+        else:
+            backwards_steps = 0
+        
+        if(turn_amount > 1.5):
+            turn_steps += 1
+        else:
+            turn_steps = 0
+        
+        if(turn_steps > 100 or backwards_steps > 100): # Stops the simulation if robot turns in circles or goes backwards for more than 3 seconds
+            break
 
-        prev_front_sonar = front_sonar
-        prev_left_sonar = left_sonar
-        prev_right_sonar = right_sonar
-        prev_rear_sonar = rear_sonar
-
-        fitness = calculate_fitness(line_detected, alignment_factor, stuck_steps, line_lost_steps, readings, lspeed, rspeed)
+        fitness = calculate_fitness(line_detected, alignment_factor, line_lost_steps, readings, avg_speed, turn_amount)
         total_fitness += fitness
         time_step += 1
         
@@ -104,49 +110,43 @@ def eval_genomes(genomes, config):
         genome.fitness = eval_genome(genome, config)
         print(f"Genome {genome_id} fitness: {genome.fitness}")
 
-def calculate_fitness(line_detected, alignment_factor, stuck_steps, line_lost_steps, readings, lspeed, rspeed):
+def calculate_fitness(line_detected, alignment_factor, line_lost_steps, readings, avg_speed, turn_amount):
     fitness = 0
-    avg_speed = (lspeed + rspeed) / 2
-    turn_amount = abs(lspeed - rspeed)
 
     if line_detected:
-        alignment_score = 1 - abs(alignment_factor)
         abs_alignment_factor = abs(alignment_factor)
 
-        fitness += 50 * alignment_score
+        fitness += 60 * abs_alignment_factor
 
-        if abs(alignment_factor) < 0.1:  # Bonus for being centered
-            fitness += 10
+        if abs_alignment_factor < 0.1:  # Bonus for being centered
+            fitness_score = 1- abs_alignment_factor
+            fitness += 5 * fitness_score
 
         if avg_speed > 0:  # Reward forward motion while on the line
-            fitness += avg_speed * 2
-    else:
-        # Penalize time spent off the line
-        fitness -= (20 + line_lost_steps * 5)
+            fitness += avg_speed * 10
+    else: # Penalize time spent off the line
+        fitness -= (line_lost_steps * 2)
     
-    if line_detected and abs(abs_alignment_factor) > 0.8:
-        fitness -= abs(abs_alignment_factor) * 10
-        
-    # === 2. Obstacle avoidance using sonar readings ===
-    if readings[3] < 0.1 or readings[4] < 0.2:  # Front sensors
-        fitness *= 0.4
-    elif readings[1] < 0.1 or readings[5] < 0.4:  # Side sensors
-        fitness *= 0.6
-    elif readings[6] < 0.1 or readings[7] < 0.2:  # Rear sensors
-        fitness *= 0.4
+    if line_detected and abs_alignment_factor > 0.8:
+        fitness -= abs_alignment_factor * 10
 
-    # === 3. Stuck penalty ===
-    if stuck_steps > 10:
-        fitness *= 0.4
+    # === Obstacle avoidance penalties ===
+    # Front sensors
+    if readings[3] < 0.1 or readings[4] < 0.2:
+        fitness -= 15 * abs(avg_speed) 
+    # Side sensors
+    elif readings[1] < 0.1 or readings[5] < 0.4:
+        fitness -= 15 * abs(avg_speed) 
+    # Rear sensors     
+    elif readings[6] < 0.1 or readings[7] < 0.2:
+        fitness -= 15 * abs(avg_speed) 
 
-    # === 4. Movement quality penalties ===
-    if turn_amount > 1.5:
-        fitness *= 0.6  # Penalty for spinning too much
+    # === Movement quality penalties ===
+    if turn_amount > 1.5: # Spinning too much
+        fitness -= 5 * turn_amount   
 
-    if avg_speed < 0:  # Moving backwards
-        fitness *= 0.4
-    elif avg_speed < 0.1:  # Barely moving
-        fitness *= 0.6
+    if avg_speed < 0: # Constantly moving backwards
+        fitness -= 5 * abs(avg_speed) 
 
     return fitness
 
