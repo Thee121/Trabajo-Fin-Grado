@@ -5,9 +5,10 @@ import os
 import cv2
 import numpy as np
 
-Checkpoint_Dir = "checkpoints"
+checkpoint_path = "checkpoints"
+config_path = "neat_config.txt"
+neat_output_path = "output/neat_output.txt"
 
-# Modify the following variables to fine tune the training.
 Number_Generations = 30
 max_Training_Time = 600 # 20 steps equal one second
 
@@ -22,7 +23,7 @@ def process_camera_image(img):
     # Convert BGR image to HSV
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     
-    # Define red color range in HSV (red spans across low and high hue values)
+    # Define red color range in HSV
     lower_red1 = np.array([0, 70, 50])
     upper_red1 = np.array([10, 255, 255])
     lower_red2 = np.array([170, 70, 50])
@@ -155,7 +156,6 @@ def calculate_fitness(line_detected, alignment_factor, line_lost_steps, readings
 
     if avg_speed < 0:  # Moving backwards
         fitness -= 10 * abs(avg_speed)    
-        
           
     return fitness
 
@@ -164,10 +164,10 @@ def run_neat(config_path):
                          neat.DefaultSpeciesSet, neat.DefaultStagnation,
                          config_path)
 
-    num_files = count_files(Checkpoint_Dir)
+    num_files = count_files(checkpoint_path)
 
     if num_files > 0:
-        latest_checkpoint = os.path.join(Checkpoint_Dir, f"neat_checkpoint-{num_files - 1}")
+        latest_checkpoint = os.path.join(checkpoint_path, f"neat_checkpoint-{num_files - 1}")
         print(f"Resuming from checkpoint: {latest_checkpoint}")
         pop = neat.Checkpointer.restore_checkpoint(latest_checkpoint)
     else:
@@ -176,7 +176,7 @@ def run_neat(config_path):
 
     pop.add_reporter(neat.StdOutReporter(True))
     pop.add_reporter(neat.StatisticsReporter())
-    pop.add_reporter(neat.Checkpointer(1, filename_prefix=f"{Checkpoint_Dir}/neat_checkpoint-"))
+    pop.add_reporter(neat.Checkpointer(1, filename_prefix=f"{checkpoint_path}/neat_checkpoint-"))
 
     winner = pop.run(eval_genomes, Number_Generations)
 
@@ -185,9 +185,7 @@ def run_neat(config_path):
     print("Training completed! Best genome saved.")
 
 def main():
-    config_path = "neat_config.txt"
-    numFiles = count_files(Checkpoint_Dir)
-    neat_output_path = "output/neat_output.txt"
+    numFiles = count_files(checkpoint_path)
 
     # Step 1: Check for best_genome.pkl
     if os.path.exists("best_genome.pkl"):
@@ -237,9 +235,9 @@ def main():
     else:
         # Delete all checkpoint files and neat_output file
         print("Deleting existing checkpoints and starting fresh training.")
-        if os.path.exists(Checkpoint_Dir):
-            for file in os.listdir(Checkpoint_Dir):
-                file_path = os.path.join(Checkpoint_Dir, file)
+        if os.path.exists(checkpoint_path):
+            for file in os.listdir(checkpoint_path):
+                file_path = os.path.join(checkpoint_path, file)
                 try:
                     if os.path.isfile(file_path):
                         os.remove(file_path)
