@@ -8,8 +8,8 @@ import numpy as np
 Checkpoint_Dir = "checkpoints"
 
 # Modify the following variables to fine tune the training.
-Number_Generations = 25
-max_Training_Time = 400 # 20 steps equal one second
+Number_Generations = 30
+max_Training_Time = 600 # 20 steps equal one second
 
 def count_files(directory):
     try:
@@ -60,6 +60,7 @@ def eval_genome(genome, config):
     line_lost_steps = 0
     backwards_steps = 0
     turn_steps = 0
+    stuck_steps = 0
     time_step= 0
 
     total_fitness = 0
@@ -89,13 +90,18 @@ def eval_genome(genome, config):
             backwards_steps += 1
         else:
             backwards_steps = 0
-        
+            
+        if any(distance < 0.1 for distance in readings):
+            stuck_steps += 1
+        else:
+            stuck_steps = 0
+            
         if(turn_amount > 1.5):
             turn_steps += 1
         else:
             turn_steps = 0
         
-        if(turn_steps > 100 or backwards_steps > 100): # Stops the simulation if robot turns in circles or goes backwards for more than 3 seconds
+        if(turn_steps > 60 or backwards_steps > 60 or stuck_steps > 60): # Turns in circles, goes backwards or gets stuck for more than 3 seconds
             break
 
         fitness = calculate_fitness(line_detected, alignment_factor, line_lost_steps, readings, avg_speed, turn_amount)
@@ -108,46 +114,49 @@ def eval_genome(genome, config):
 def eval_genomes(genomes, config):
     for genome_id, genome in genomes:
         genome.fitness = eval_genome(genome, config)
-        print(f"Genome {genome_id} fitness: {genome.fitness}")
-
+        print(f"Genome {genome_id} fitness: {genome.fitness} \n")
+        
 def calculate_fitness(line_detected, alignment_factor, line_lost_steps, readings, avg_speed, turn_amount):
     fitness = 0
 
+    # === Line detection and following rewards / penalties ===
     if line_detected:
         abs_alignment_factor = abs(alignment_factor)
 
-        fitness += 60 * abs_alignment_factor
+        # Reward: Strongly reward being near the center
+        fitness += 60 * (1 - abs_alignment_factor)
 
-        if abs_alignment_factor < 0.1:  # Bonus for being centered
-            fitness_score = 1- abs_alignment_factor
-            fitness += 5 * fitness_score
+        # Bonus for being very close to center
+        if abs_alignment_factor < 0.1:
+            fitness += 40 * (1 - abs_alignment_factor)
+        
+        # Bonus for having a positive speed when detecting the line
+        if(abs(avg_speed)) > 0.5 and turn_amount < 1.5:
+            fitness * 10 * abs(avg_speed)
 
-        if avg_speed > 0:  # Reward forward motion while on the line
-            fitness += avg_speed * 10
-    else: # Penalize time spent off the line
-        fitness -= (line_lost_steps * 2)
-    
-    if line_detected and abs_alignment_factor > 0.8:
-        fitness -= abs_alignment_factor * 10
+    else:
+        # No reward if line not detected
+        abs_alignment_factor = 1.0
 
-    # === Obstacle avoidance penalties ===
-    # Front sensors
-    if readings[3] < 0.1 or readings[4] < 0.2:
+    # Penalize time spent off the line
+    if line_lost_steps > 0:
+        fitness -= line_lost_steps * 5
+
+    if line_detected and abs_alignment_factor > 0.7:
+        fitness -= abs_alignment_factor * 30
+
+    # === Obstacle avoidance penalty ===
+    if any(distance < 0.4 for distance in readings):
         fitness -= 15 * abs(avg_speed) 
-    # Side sensors
-    elif readings[1] < 0.1 or readings[5] < 0.4:
-        fitness -= 15 * abs(avg_speed) 
-    # Rear sensors     
-    elif readings[6] < 0.1 or readings[7] < 0.2:
-        fitness -= 15 * abs(avg_speed) 
+        
+    # === Movement penalties ===
+    if turn_amount > 1.5:
+        fitness -= 10 * turn_amount  # Penalty for spinning too much
 
-    # === Movement quality penalties ===
-    if turn_amount > 1.5: # Spinning too much
-        fitness -= 5 * turn_amount   
-
-    if avg_speed < 0: # Constantly moving backwards
-        fitness -= 5 * abs(avg_speed) 
-
+    if avg_speed < 0:  # Moving backwards
+        fitness -= 10 * abs(avg_speed)    
+        
+          
     return fitness
 
 def run_neat(config_path):
