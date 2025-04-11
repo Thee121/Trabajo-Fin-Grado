@@ -23,9 +23,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import numpy as np
 import cv2
 import time
-
 from coppeliasim_zmqremoteapi_client import RemoteAPIClient
-
 
 class Coppelia():
 
@@ -47,11 +45,9 @@ class Coppelia():
         while self.sim.getSimulationState() != self.sim.simulation_stopped:
             time.sleep(0.1)
         self.sim.setInt32Param(self.sim.intparam_idle_fps, self.default_idle_fps)
-        print('*** done ***')
 
     def is_running(self):
         return self.sim.getSimulationState() != self.sim.simulation_stopped
-
 
 class P3DX():
 
@@ -60,7 +56,6 @@ class P3DX():
 
     def __init__(self, sim, robot_id, use_camera=False, use_lidar=False):
         self.sim = sim
-        print('Getting handles of', robot_id)
         self.left_motor = self.sim.getObject(f'/{robot_id}/leftMotor')
         self.right_motor = self.sim.getObject(f'/{robot_id}/rightMotor')
         self.sonar = []

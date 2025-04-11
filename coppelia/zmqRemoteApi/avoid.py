@@ -20,37 +20,52 @@ def count_files(directory):
         return -1
 
 def process_camera_image(img):
-    # Convert BGR image to HSV
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    
-    # Define red color range in HSV
+
     lower_red1 = np.array([0, 70, 50])
     upper_red1 = np.array([10, 255, 255])
     lower_red2 = np.array([170, 70, 50])
     upper_red2 = np.array([180, 255, 255])
-    
-    # Threshold the HSV image to get only red colors
+
     mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
     mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
     mask = cv2.bitwise_or(mask1, mask2)
 
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    _, img_width = mask.shape
     line_detected = False
     cx = None
+    orientation = None  # "parallel", "perpendicular", or None
 
     for contour in contours:
-        _, _, w, _ = cv2.boundingRect(contour)
-        if w >= img_width // 5:  # Ensure the line is large enough
-            M = cv2.moments(contour)
-            if M["m00"] != 0:
-                cx = int(M["m10"] / M["m00"])
-                line_detected = True
-                break
+        contour_area = cv2.contourArea(contour)
 
-    return line_detected, cx
+        if contour_area < 200:  # filter out noise
+            continue
 
+        M = cv2.moments(contour)
+        if M["m00"] == 0:
+            continue
+
+        cx = int(M["m10"] / M["m00"])
+        rect = cv2.minAreaRect(contour)
+        angle = rect[2]
+
+        if angle < -45:
+            angle += 90
+        abs_angle = abs(angle)
+
+        if abs_angle < 20:  # Close to horizontal
+            orientation = "perpendicular"
+        elif abs_angle > 70:  # Close to vertical
+            orientation = "parallel"
+        else:
+            orientation = "angled"
+
+        line_detected = True
+        break
+
+    return line_detected, cx, orientation
 
 def eval_genome(genome, config):    
     net = neat.nn.FeedForwardNetwork.create(genome, config)
@@ -62,6 +77,7 @@ def eval_genome(genome, config):
     backwards_steps = 0
     turn_steps = 0
     stuck_steps = 0
+    stop_steps = 0
     time_step= 0
 
     total_fitness = 0
@@ -69,7 +85,7 @@ def eval_genome(genome, config):
     while coppelia.is_running() and time_step < max_Training_Time:
         readings = robot.get_sonar()
         img = robot.get_image()
-        line_detected, cx = process_camera_image(img)
+        line_detected, cx, orientation = process_camera_image(img)
         
         image_center = img.shape[1] // 2 if img is not None else 0
         alignment_factor = ((cx - image_center) / image_center) if line_detected else 0
@@ -80,7 +96,14 @@ def eval_genome(genome, config):
         robot.set_speed(lspeed, rspeed)
         
         avg_speed = (lspeed + rspeed) / 2
-        turn_amount = abs(lspeed - rspeed)
+        turn_amountl = abs(lspeed - rspeed)
+        turn_amountr = abs(rspeed -lspeed)
+        turn_amount = 0
+        
+        if(turn_amountl > turn_amountr):
+            turn_amount = turn_amountl
+        else:
+            turn_amount = turn_amountr
         
         if not line_detected:
             line_lost_steps += 1
@@ -102,10 +125,15 @@ def eval_genome(genome, config):
         else:
             turn_steps = 0
         
-        if(turn_steps > 60 or backwards_steps > 60 or stuck_steps > 60): # Turns in circles, goes backwards or gets stuck for more than 3 seconds
+        if(abs(avg_speed) < 0.1):
+            stop_steps += 1
+        else:
+            stop_steps = 0
+            
+        if(turn_steps > 60 or backwards_steps > 80 or stuck_steps > 60 or stop_steps > 60): # Stops simulation if conditions met. 20 steps = 1 second
             break
 
-        fitness = calculate_fitness(line_detected, alignment_factor, line_lost_steps, readings, avg_speed, turn_amount)
+        fitness = calculate_fitness(line_detected, alignment_factor, line_lost_steps, readings, avg_speed, turn_amount, orientation)
         total_fitness += fitness
         time_step += 1
         
@@ -117,45 +145,56 @@ def eval_genomes(genomes, config):
         genome.fitness = eval_genome(genome, config)
         print(f"Genome {genome_id} fitness: {genome.fitness} \n")
         
-def calculate_fitness(line_detected, alignment_factor, line_lost_steps, readings, avg_speed, turn_amount):
+def calculate_fitness(line_detected, alignment_factor, line_lost_steps, readings, avg_speed, turn_amount, orientation):
     fitness = 0
+    abs_avg_speed = abs(avg_speed)
 
-    # === Line detection and following rewards / penalties ===
     if line_detected:
         abs_alignment_factor = abs(alignment_factor)
 
-        # Reward: Strongly reward being near the center
-        fitness += 60 * (1 - abs_alignment_factor)
-
-        # Bonus for being very close to center
-        if abs_alignment_factor < 0.1:
-            fitness += 40 * (1 - abs_alignment_factor)
+        # Reward for detecting the line
+        fitness += 25 * abs_alignment_factor
         
-        # Bonus for having a positive speed when detecting the line
-        if(abs(avg_speed)) > 0.5 and turn_amount < 1.5:
-            fitness * 10 * abs(avg_speed)
+        # Very missaligned
+        if abs_alignment_factor > 0.7:
+            fitness -= abs_alignment_factor * 40
+            
+        # Strongly reward being near the center
+        if abs_alignment_factor < 0.1:
+            fitness += 100 * (1 - abs_alignment_factor)
+        
+        # Bonus reward for having a positive speed
+        if(abs_avg_speed) > 1.0 and turn_amount < 1.5:
+            fitness += 10 * abs(avg_speed)
+                
+        # Reward being parallel to the line
+        if orientation == "parallel":
+            fitness += 40 * abs_avg_speed
+        elif orientation == "angled":
+            fitness += 20 * abs_avg_speed
+        elif orientation == "perpendicular":
+            fitness -= 15 * abs_avg_speed
 
-    else:
-        # No reward if line not detected
+    else: # No reward if line not detected
         abs_alignment_factor = 1.0
 
     # Penalize time spent off the line
     if line_lost_steps > 0:
-        fitness -= line_lost_steps * 5
-
-    if line_detected and abs_alignment_factor > 0.7:
-        fitness -= abs_alignment_factor * 30
-
-    # === Obstacle avoidance penalty ===
-    if any(distance < 0.4 for distance in readings):
-        fitness -= 15 * abs(avg_speed) 
+        fitness -= line_lost_steps * 10
         
-    # === Movement penalties ===
-    if turn_amount > 1.5:
-        fitness -= 10 * turn_amount  # Penalty for spinning too much
+    # Obstacle avoidance penalty
+    if any(distance < 0.2 for distance in readings):
+        fitness -= 15 * abs_avg_speed
+        
+    # Movement penalties
+    if turn_amount > 1.5: # Penalty for spinning too much
+        fitness -= 10 * turn_amount
 
     if avg_speed < 0:  # Moving backwards
-        fitness -= 10 * abs(avg_speed)    
+        fitness -= 10 * abs_avg_speed  
+    
+    if abs_avg_speed < 0.1: # Robot does not move
+        fitness -= 15
           
     return fitness
 

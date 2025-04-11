@@ -12,9 +12,9 @@ activation_mutate_rate  = 0.1
 activation_options      = tanh
 
 # node aggregation options
-aggregation_default     = sum
-aggregation_mutate_rate = 0.0
-aggregation_options     = sum
+aggregation_default     = max
+aggregation_mutate_rate = 0.1
+aggregation_options     = max
 
 # node bias options
 bias_init_mean          = 0.0
