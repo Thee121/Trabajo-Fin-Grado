@@ -23,6 +23,7 @@ def main():
     std_fitnesses = []
     best_fitnesses = []
     generations = []
+    checkpoints_treated = 0  # Track how many were actually processed
 
     with open(Output_File, "w") as out_file:
         out_file.write("Checkpoint Summary:\n\n")
@@ -55,12 +56,18 @@ def main():
                     out_file.write(f"Total Extinction: {'Yes' if extinct else 'No'}\n")
                     out_file.write("-" * 40 + "\n\n")
 
+                checkpoints_treated += 1
+
             except Exception as e:
                 print(f"Error reading checkpoint {checkpoint_path}: {e}")
-
+                
+    print(f"{checkpoints_treated} Checkpoint File{'s' if checkpoints_treated != 1 else ''} Treated. Information dumped in '/output/robot_info'")
+    
     plot_graph(generations, avg_fitnesses, "Average Fitness Through Generations", "Generation", "Average Fitness", "avg_fitness.png")
     plot_graph(generations, std_fitnesses, "Standard Deviation Through Generations", "Generation", "Standard Deviation", "std_deviation.png")
     plot_graph(generations, best_fitnesses, "Best Fitnesses Through the Generations", "Generation", "Best Fitnesses", "best_fitnesses.png")
+    print("Graphs Made and saved in '/output'")
+
     
 def plot_graph(x_data, y_data, title, xlabel, ylabel, filename):
     plt.figure()

@@ -35,7 +35,6 @@ def process_camera_image(img):
 
     line_detected = False
     cx = None
-    orientation = None  # "parallel", "perpendicular", or None
 
     for contour in contours:
         contour_area = cv2.contourArea(contour)
@@ -48,24 +47,10 @@ def process_camera_image(img):
             continue
 
         cx = int(M["m10"] / M["m00"])
-        rect = cv2.minAreaRect(contour)
-        angle = rect[2]
-
-        if angle < -45:
-            angle += 90
-        abs_angle = abs(angle)
-
-        if abs_angle < 20:  # Close to horizontal
-            orientation = "perpendicular"
-        elif abs_angle > 70:  # Close to vertical
-            orientation = "parallel"
-        else:
-            orientation = "angled"
-
         line_detected = True
         break
 
-    return line_detected, cx, orientation
+    return line_detected, cx
 
 def eval_genome(genome, config):    
     net = neat.nn.FeedForwardNetwork.create(genome, config)
@@ -78,6 +63,8 @@ def eval_genome(genome, config):
     turn_steps = 0
     stuck_steps = 0
     stop_steps = 0
+    alignment_steps = 0
+    
     time_step= 0
 
     total_fitness = 0
@@ -85,7 +72,7 @@ def eval_genome(genome, config):
     while coppelia.is_running() and time_step < max_Training_Time:
         readings = robot.get_sonar()
         img = robot.get_image()
-        line_detected, cx, orientation = process_camera_image(img)
+        line_detected, cx  = process_camera_image(img)
         
         image_center = img.shape[1] // 2 if img is not None else 0
         alignment_factor = ((cx - image_center) / image_center) if line_detected else 0
@@ -105,6 +92,9 @@ def eval_genome(genome, config):
         else:
             turn_amount = turn_amountr
         
+        if(lspeed == 0 and abs(rspeed)>0) or (rspeed == 0 and abs(lspeed >0)):
+            turn_amount = 2
+        
         if not line_detected:
             line_lost_steps += 1
         else:
@@ -120,7 +110,7 @@ def eval_genome(genome, config):
         else:
             stuck_steps = 0
             
-        if(turn_amount > 1.5):
+        if(turn_amount > 1):
             turn_steps += 1
         else:
             turn_steps = 0
@@ -129,11 +119,16 @@ def eval_genome(genome, config):
             stop_steps += 1
         else:
             stop_steps = 0
+        
+        if(abs(alignment_factor) < 0.1):
+            alignment_steps += 1
+        else:
+            alignment_steps = 0
             
-        if(turn_steps > 60 or backwards_steps > 80 or stuck_steps > 60 or stop_steps > 60): # Stops simulation if conditions met. 20 steps = 1 second
+        if(turn_steps > 60 or backwards_steps > 80 or stuck_steps > 30 or stop_steps > 60): # Stops simulation if conditions met. 20 steps = 1 second
             break
 
-        fitness = calculate_fitness(line_detected, alignment_factor, line_lost_steps, readings, avg_speed, turn_amount, orientation)
+        fitness = calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line_lost_steps, backwards_steps, stop_steps, turn_steps, turn_amount)
         total_fitness += fitness
         time_step += 1
         
@@ -145,56 +140,42 @@ def eval_genomes(genomes, config):
         genome.fitness = eval_genome(genome, config)
         print(f"Genome {genome_id} fitness: {genome.fitness} \n")
         
-def calculate_fitness(line_detected, alignment_factor, line_lost_steps, readings, avg_speed, turn_amount, orientation):
-    fitness = 0
+def calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line_lost_steps, backwards_steps, stop_steps, turn_steps, turn_amount):
+    abs_alignment_factor = abs(alignment_factor)
     abs_avg_speed = abs(avg_speed)
+    fitness = 0
 
-    if line_detected:
-        abs_alignment_factor = abs(alignment_factor)
+    if line_detected:    
 
-        # Reward for detecting the line
-        fitness += 25 * abs_alignment_factor
-        
-        # Very missaligned
-        if abs_alignment_factor > 0.7:
-            fitness -= abs_alignment_factor * 40
-            
-        # Strongly reward being near the center
-        if abs_alignment_factor < 0.1:
+        if abs_alignment_factor < 0.05:
+            fitness += 200 * (1 - abs_alignment_factor)
+        elif abs_alignment_factor < 0.1:
             fitness += 100 * (1 - abs_alignment_factor)
-        
-        # Bonus reward for having a positive speed
-        if(abs_avg_speed) > 1.0 and turn_amount < 1.5:
-            fitness += 10 * abs(avg_speed)
-                
-        # Reward being parallel to the line
-        if orientation == "parallel":
-            fitness += 40 * abs_avg_speed
-        elif orientation == "angled":
-            fitness += 20 * abs_avg_speed
-        elif orientation == "perpendicular":
-            fitness -= 15 * abs_avg_speed
-
-    else: # No reward if line not detected
-        abs_alignment_factor = 1.0
+        elif abs_alignment_factor < 0.2:
+            fitness += 50 * (1 - abs_alignment_factor)
+        else:
+            fitness -= abs_alignment_factor * 150
+            
+        if(abs_avg_speed) > 1.0 and abs_alignment_factor < 0.2:
+            fitness += 25 * abs(avg_speed)
 
     # Penalize time spent off the line
     if line_lost_steps > 0:
-        fitness -= line_lost_steps * 10
+        fitness -= line_lost_steps * 20
         
     # Obstacle avoidance penalty
     if any(distance < 0.2 for distance in readings):
         fitness -= 15 * abs_avg_speed
         
     # Movement penalties
-    if turn_amount > 1.5: # Penalty for spinning too much
-        fitness -= 10 * turn_amount
+    if turn_amount > 1: # Penalty for spinning too much
+        fitness -= 20 * turn_steps
 
     if avg_speed < 0:  # Moving backwards
-        fitness -= 10 * abs_avg_speed  
+        fitness -= 5 * backwards_steps  
     
     if abs_avg_speed < 0.1: # Robot does not move
-        fitness -= 15
+        fitness -= 15 * stop_steps
           
     return fitness
 
@@ -258,7 +239,6 @@ def main():
             
             if answer2 == "yes":
                 os.remove("best_genome.pkl")
-
 
     # Step 2: Check for checkpoint files
     if numFiles == 0:
