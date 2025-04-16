@@ -148,13 +148,13 @@ def calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line
     if line_detected:    
 
         if abs_alignment_factor < 0.05:
-            fitness += 200 * alignment_steps
-        elif abs_alignment_factor < 0.1:
             fitness += 100 * alignment_steps
+        elif abs_alignment_factor < 0.1:
+            fitness += 75 * alignment_steps
         elif abs_alignment_factor < 0.2:
             fitness += 50 * alignment_steps
         else:
-            fitness -= 25 * alignment_steps
+            fitness -= 50
             
         if(abs_avg_speed) > 1.0 and abs_alignment_factor < 0.2:
             fitness += 25 * abs(avg_speed)
