@@ -120,7 +120,7 @@ def eval_genome(genome, config):
         else:
             stop_steps = 0
         
-        if(abs(alignment_factor) < 0.1):
+        if(abs(alignment_factor) < 0.2):
             alignment_steps += 1
         else:
             alignment_steps = 0
@@ -128,7 +128,7 @@ def eval_genome(genome, config):
         if(turn_steps > 60 or backwards_steps > 80 or stuck_steps > 30 or stop_steps > 60): # Stops simulation if conditions met. 20 steps = 1 second
             break
 
-        fitness = calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line_lost_steps, backwards_steps, stop_steps, turn_steps, turn_amount)
+        fitness = calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line_lost_steps, backwards_steps, stop_steps, alignment_steps, turn_steps, turn_amount)
         total_fitness += fitness
         time_step += 1
         
@@ -140,7 +140,7 @@ def eval_genomes(genomes, config):
         genome.fitness = eval_genome(genome, config)
         print(f"Genome {genome_id} fitness: {genome.fitness} \n")
         
-def calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line_lost_steps, backwards_steps, stop_steps, turn_steps, turn_amount):
+def calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line_lost_steps, backwards_steps, stop_steps, alignment_steps, turn_steps, turn_amount):
     abs_alignment_factor = abs(alignment_factor)
     abs_avg_speed = abs(avg_speed)
     fitness = 0
@@ -148,13 +148,13 @@ def calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line
     if line_detected:    
 
         if abs_alignment_factor < 0.05:
-            fitness += 200 * (1 - abs_alignment_factor)
+            fitness += 200 * alignment_steps
         elif abs_alignment_factor < 0.1:
-            fitness += 100 * (1 - abs_alignment_factor)
+            fitness += 100 * alignment_steps
         elif abs_alignment_factor < 0.2:
-            fitness += 50 * (1 - abs_alignment_factor)
+            fitness += 50 * alignment_steps
         else:
-            fitness -= abs_alignment_factor * 150
+            fitness -= 25 * alignment_steps
             
         if(abs_avg_speed) > 1.0 and abs_alignment_factor < 0.2:
             fitness += 25 * abs(avg_speed)
