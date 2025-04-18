@@ -16,14 +16,14 @@ def main():
     num_files = count_files(Checkpoint_Dir)
 
     if num_files == 0:
-        print("No checkpoint files found. Exiting treatment.")
+        print("No checkpoint files found.")
         return
 
     avg_fitnesses = []
     std_fitnesses = []
     best_fitnesses = []
     generations = []
-    checkpoints_treated = 0  # Track how many were actually processed
+    checkpoints_treated = 0
 
     with open(Output_File, "w") as out_file:
         out_file.write("Checkpoint Summary:\n\n")
@@ -40,9 +40,9 @@ def main():
                 std_fitness = statistics.stdev(fitnesses) if len(fitnesses) > 1 else 0
                 extinct = len(pop.species.species) == 0
 
-                avg_fitnesses.append(avg_fitness)
-                std_fitnesses.append(std_fitness)
-                best_fitnesses.append(best_fitness)
+                avg_fitnesses.append(avg_fitness/1000)
+                std_fitnesses.append(std_fitness/1000)
+                best_fitnesses.append(best_fitness/1000)
                 generations.append(pop.generation)
 
                 with open(Output_File, "a") as out_file:
