@@ -40,9 +40,9 @@ def main():
                     std_fitness = statistics.stdev(fitnesses) if len(fitnesses) > 1 else 0
                     extinct = len(pop.species.species) == 0
 
-                    avg_fitnesses.append(avg_fitness / 10000)
-                    std_fitnesses.append(std_fitness / 10000)
-                    best_fitnesses.append(best_fitness / 10000)
+                    avg_fitnesses.append(avg_fitness / 1000)
+                    std_fitnesses.append(std_fitness / 1000)
+                    best_fitnesses.append(best_fitness / 1000)
                     generations.append(pop.generation)
 
                     out_file.write(f"Checkpoint: neat_checkpoint-{i}\n")
