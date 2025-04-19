@@ -169,19 +169,19 @@ def calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line
 
     # Penalize time spent off the line
     if line_lost_steps > 0:
-        fitness -= (line_lost_steps/20) ** 4
+        fitness -= (line_lost_steps/20) ** 5
         
     # Obstacle avoidance penalty
     if any(distance < 0.2 for distance in readings):
-        fitness -= (stuck_steps/20) ** 3
+        fitness -= (stuck_steps/20) ** 4
         
     # Movement penalties
     if turn_amount > 1: # Penalty for spinning too much
-        fitness -= (turn_steps/20) ** 3
+        fitness -= (turn_steps/20) ** 4
     elif avg_speed < 0:  # Moving backwards
         fitness -=  (backwards_steps/20) ** 2
     elif abs_avg_speed < 0.1: # Robot does not move
-        fitness -= (stop_steps/20) ** 2
+        fitness -= (stop_steps/20) ** 3
           
     return fitness
 
