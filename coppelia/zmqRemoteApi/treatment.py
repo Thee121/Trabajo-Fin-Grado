@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 Checkpoint_Dir = "checkpoints"
 Output_File = "output/robot_info"
-Output_Graphs_Dir = "output"
+Output_Graphs_Dir = "output/Graphs"
 
 os.makedirs(Output_Graphs_Dir, exist_ok=True)
 
@@ -28,24 +28,23 @@ def main():
     with open(Output_File, "w") as out_file:
         out_file.write("Checkpoint Summary:\n\n")
 
-    for i in range(num_files):
-        checkpoint_path = os.path.join(Checkpoint_Dir, f"neat_checkpoint-{i}")
-        if os.path.exists(checkpoint_path):
-            try:
-                pop = neat.Checkpointer.restore_checkpoint(checkpoint_path)
-                
-                fitnesses = [g.fitness for g in pop.population.values() if g.fitness is not None]
-                avg_fitness = statistics.mean(fitnesses) if fitnesses else 0
-                best_fitness = max(fitnesses) if fitnesses else 0
-                std_fitness = statistics.stdev(fitnesses) if len(fitnesses) > 1 else 0
-                extinct = len(pop.species.species) == 0
+        for i in range(num_files):
+            checkpoint_path = os.path.join(Checkpoint_Dir, f"neat_checkpoint-{i}")
+            if os.path.exists(checkpoint_path):
+                try:
+                    pop = neat.Checkpointer.restore_checkpoint(checkpoint_path)
 
-                avg_fitnesses.append(avg_fitness/1000)
-                std_fitnesses.append(std_fitness/1000)
-                best_fitnesses.append(best_fitness/1000)
-                generations.append(pop.generation)
+                    fitnesses = [g.fitness for g in pop.population.values() if g.fitness is not None]
+                    avg_fitness = statistics.mean(fitnesses) if fitnesses else 0
+                    best_fitness = max(fitnesses) if fitnesses else 0
+                    std_fitness = statistics.stdev(fitnesses) if len(fitnesses) > 1 else 0
+                    extinct = len(pop.species.species) == 0
 
-                with open(Output_File, "a") as out_file:
+                    avg_fitnesses.append(avg_fitness / 10000)
+                    std_fitnesses.append(std_fitness / 10000)
+                    best_fitnesses.append(best_fitness / 10000)
+                    generations.append(pop.generation)
+
                     out_file.write(f"Checkpoint: neat_checkpoint-{i}\n")
                     out_file.write(f"Generation: {pop.generation}\n")
                     out_file.write(f"Total species: {len(pop.species.species)}\n")
@@ -56,19 +55,21 @@ def main():
                     out_file.write(f"Total Extinction: {'Yes' if extinct else 'No'}\n")
                     out_file.write("-" * 40 + "\n\n")
 
-                checkpoints_treated += 1
+                    checkpoints_treated += 1
 
-            except Exception as e:
-                print(f"Error reading checkpoint {checkpoint_path}: {e}")
-                
+                except Exception as e:
+                    print(f"Error reading checkpoint {checkpoint_path}: {e}")
+
     print(f"{checkpoints_treated} Checkpoint File{'s' if checkpoints_treated != 1 else ''} Treated. Information dumped in '/output/robot_info'")
-    
+
     plot_graph(generations, avg_fitnesses, "Average Fitness Through Generations", "Generation", "Average Fitness", "avg_fitness.png")
     plot_graph(generations, std_fitnesses, "Standard Deviation Through Generations", "Generation", "Standard Deviation", "std_deviation.png")
-    plot_graph(generations, best_fitnesses, "Best Fitnesses Through the Generations", "Generation", "Best Fitnesses", "best_fitnesses.png")
-    print("Graphs Made and saved in '/output'")
+    plot_graph(generations, best_fitnesses, "Best Fitness Through Generations", "Generation", "Best Fitness", "best_fitnesses.png")
 
-    
+    plot_combined_graph(generations, avg_fitnesses, std_fitnesses, best_fitnesses)
+
+    print("Graphs Made and saved in '/output/Graphs'")
+
 def plot_graph(x_data, y_data, title, xlabel, ylabel, filename):
     plt.figure()
     plt.plot(x_data, y_data, marker='o', color='b', label=ylabel)
@@ -77,6 +78,21 @@ def plot_graph(x_data, y_data, title, xlabel, ylabel, filename):
     plt.ylabel(ylabel)
     plt.grid(True)
     plt.savefig(os.path.join(Output_Graphs_Dir, filename))
+    plt.close()
+
+def plot_combined_graph(gens, avg, std, best):
+    plt.figure(figsize=(14, 7))
+    plt.plot(gens, avg, label='Avg Fitness', color='blue', marker='o')
+    plt.plot(gens, std, label='Std Deviation', color='orange', marker='s')
+    plt.plot(gens, best, label='Best Fitness', color='green', marker='d')
+    
+    plt.title("Combined Metrics Over Generations")
+    plt.xlabel("Generation")
+    plt.ylabel("Metric Value")
+    plt.grid(True)
+    plt.legend(loc='best')
+    plt.tight_layout()
+    plt.savefig(os.path.join(Output_Graphs_Dir, "combined_metrics.png"))
     plt.close()
 
 if __name__ == '__main__':
