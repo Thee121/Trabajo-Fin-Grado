@@ -35,12 +35,9 @@ def process_camera_image(img):
 
     # Check if line is at the bottom
     height = mask.shape[0]
-    bottom_region = mask[int(height * 0.9):, :]  # Bottom 10% of the image
+    bottom_region = mask[int(height * 0.8):, :]
 
-    # Consider "on line" if at least some red is detected at the bottom
-    on_line = cv2.countNonZero(bottom_region) > 50
-
-    # Detect contours as before
+    on_line = cv2.countNonZero(bottom_region) > 5
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     line_detected = False
     cx = None
@@ -59,8 +56,6 @@ def process_camera_image(img):
         break
 
     return line_detected, cx, on_line
-
-
 
 def eval_genome(genome, config):    
     net = neat.nn.FeedForwardNetwork.create(genome, config)
