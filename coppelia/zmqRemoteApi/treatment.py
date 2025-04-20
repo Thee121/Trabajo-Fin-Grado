@@ -3,6 +3,8 @@ import neat
 import statistics
 import matplotlib.pyplot as plt
 
+GRAPH_EVERY_X_GENERATIONS = 1
+
 Checkpoint_Dir = "checkpoints"
 Output_File = "output/robot_info"
 Output_Graphs_Dir = "output/Graphs"
@@ -40,13 +42,15 @@ def main():
                     std_fitness = statistics.stdev(fitnesses) if len(fitnesses) > 1 else 0
                     extinct = len(pop.species.species) == 0
 
-                    avg_fitnesses.append(avg_fitness / 1000)
-                    std_fitnesses.append(std_fitness / 1000)
-                    best_fitnesses.append(best_fitness / 1000)
-                    generations.append(pop.generation)
+                    gen = pop.generation
+                    if gen % GRAPH_EVERY_X_GENERATIONS == 0:
+                        generations.append(gen)
+                        avg_fitnesses.append(avg_fitness / 1000)
+                        std_fitnesses.append(std_fitness / 1000)
+                        best_fitnesses.append(best_fitness / 1000)
 
                     out_file.write(f"Checkpoint: neat_checkpoint-{i}\n")
-                    out_file.write(f"Generation: {pop.generation}\n")
+                    out_file.write(f"Generation: {gen}\n")
                     out_file.write(f"Total species: {len(pop.species.species)}\n")
                     out_file.write(f"Total genomes: {len(pop.population)}\n")
                     out_file.write(f"Average Fitness: {avg_fitness:.4f}\n")
@@ -65,7 +69,6 @@ def main():
     plot_graph(generations, avg_fitnesses, "Average Fitness Through Generations", "Generation", "Average Fitness", "avg_fitness.png")
     plot_graph(generations, std_fitnesses, "Standard Deviation Through Generations", "Generation", "Standard Deviation", "std_deviation.png")
     plot_graph(generations, best_fitnesses, "Best Fitness Through Generations", "Generation", "Best Fitness", "best_fitnesses.png")
-
     plot_combined_graph(generations, avg_fitnesses, std_fitnesses, best_fitnesses)
 
     print("Graphs Made and saved in '/output/Graphs'")
@@ -80,19 +83,19 @@ def plot_graph(x_data, y_data, title, xlabel, ylabel, filename):
     plt.savefig(os.path.join(Output_Graphs_Dir, filename))
     plt.close()
 
-def plot_combined_graph(gens, avg, std, best):
+def plot_combined_graph(gens, avg, std, best, filename="combined_metrics.png"):
     plt.figure(figsize=(14, 7))
     plt.plot(gens, avg, label='Avg Fitness', color='blue', marker='o')
     plt.plot(gens, std, label='Std Deviation', color='orange', marker='s')
     plt.plot(gens, best, label='Best Fitness', color='green', marker='d')
-    
+
     plt.title("Combined Metrics Over Generations")
     plt.xlabel("Generation")
     plt.ylabel("Metric Value")
     plt.grid(True)
     plt.legend(loc='best')
     plt.tight_layout()
-    plt.savefig(os.path.join(Output_Graphs_Dir, "combined_metrics.png"))
+    plt.savefig(os.path.join(Output_Graphs_Dir, filename))
     plt.close()
 
 if __name__ == '__main__':
