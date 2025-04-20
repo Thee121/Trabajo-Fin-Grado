@@ -40,7 +40,6 @@ class Coppelia():
         self.sim.setBoolProperty(self.sim.handle_app, 'displayEnabled', False )
 
     def stop_simulation(self):
-        print('*** stopping simulation ***')
         self.sim.stopSimulation()
         while self.sim.getSimulationState() != self.sim.simulation_stopped:
             time.sleep(0.1)
