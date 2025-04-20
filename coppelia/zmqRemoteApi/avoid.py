@@ -37,7 +37,7 @@ def process_camera_image(img):
     height = mask.shape[0]
     bottom_region = mask[int(height * 0.8):, :]
 
-    on_line = cv2.countNonZero(bottom_region) > 5
+    on_line = cv2.countNonZero(bottom_region) > 10
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     line_detected = False
     cx = None
@@ -155,33 +155,33 @@ def calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line
         fitness_factor = inverse_alignment_factor * (alignment_steps/20)
         
         # Reward for detecting the line correctly. 
-        fitness += (fitness_factor * avg_speed) ** 2
+        fitness += (fitness_factor * avg_speed)
 
         # Extra reward depending on how well it is aligned
         if abs_alignment_factor < 0.1:
-            fitness += fitness_factor ** 5
-        elif abs_alignment_factor < 0.2:
             fitness += fitness_factor ** 4
-        elif abs_alignment_factor < 0.3:
+        elif abs_alignment_factor < 0.2:
             fitness += fitness_factor ** 3
+        elif abs_alignment_factor < 0.3:
+            fitness += fitness_factor ** 2
         else:
-            fitness -= fitness_factor ** 2
+            fitness -= fitness_factor
 
     # Penalize time spent off the line
     if line_lost_steps > 0:
-        fitness -= (line_lost_steps/20) ** 4
+        fitness -= (line_lost_steps/20) ** 3
         
     # Obstacle avoidance penalty
     if any(distance < 0.2 for distance in readings):
-        fitness -= (stuck_steps/20) ** 3
+        fitness -= (stuck_steps/20) ** 2
         
     # Movement penalties
     if turn_amount > 1: # Penalty for spinning too much
-        fitness -= (turn_steps/20) ** 3
+        fitness -= (turn_steps/20) ** 2
     elif avg_speed < 0:  # Moving backwards
-        fitness -=  (backwards_steps/20) ** 2
+        fitness -=  (backwards_steps/20)
     elif abs_avg_speed < 0.1: # Robot does not move
-        fitness -= (stop_steps/20) ** 2
+        fitness -= (stop_steps/20)
           
     return fitness
 
