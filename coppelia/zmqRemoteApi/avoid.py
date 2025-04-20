@@ -10,7 +10,7 @@ config_path = "neat_config.txt"
 neat_output_path = "output/neat_output.txt"
 
 Number_Generations = 50
-max_Training_Time = 600 # 20 steps equal one second
+max_Training_Time = 900 # 20 steps equal one second
 
 def count_files(directory):
     try:
@@ -130,7 +130,7 @@ def eval_genome(genome, config):
         else:
             alignment_steps = 0
             
-        if(turn_steps > 40 or backwards_steps > 80 or stuck_steps > 60 or stop_steps > 40): # Stops simulation if conditions met. 20 steps = 1 second
+        if(turn_steps > 60 or backwards_steps > 80 or stuck_steps > 60 or stop_steps > 60): # Stops simulation if conditions met. 20 steps = 1 second
             break
 
         fitness = calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line_lost_steps, backwards_steps, stop_steps, stuck_steps, alignment_steps, turn_steps, turn_amount)
@@ -159,29 +159,29 @@ def calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line
 
         # Extra reward depending on how well it is aligned
         if abs_alignment_factor < 0.1:
-            fitness += fitness_factor ** 4
-        elif abs_alignment_factor < 0.2:
             fitness += fitness_factor ** 3
+        elif abs_alignment_factor < 0.2:
+            fitness += fitness_factor ** 2.5
         elif abs_alignment_factor < 0.3:
             fitness += fitness_factor ** 2
-        else:
-            fitness -= fitness_factor
+        elif abs_alignment_factor < 0.4:
+            fitness += fitness_factor ** 1.5
 
     # Penalize time spent off the line
     if line_lost_steps > 0:
-        fitness -= (line_lost_steps/20) ** 3
+        fitness -= (line_lost_steps/20) * 40
         
     # Obstacle avoidance penalty
     if any(distance < 0.2 for distance in readings):
-        fitness -= (stuck_steps/20) ** 2
+        fitness -= (stuck_steps/20) * 20
         
     # Movement penalties
     if turn_amount > 1: # Penalty for spinning too much
-        fitness -= (turn_steps/20) ** 2
+        fitness -= (turn_steps/20) * 15
     elif avg_speed < 0:  # Moving backwards
-        fitness -=  (backwards_steps/20)
+        fitness -=  (backwards_steps/20) * 10
     elif abs_avg_speed < 0.1: # Robot does not move
-        fitness -= (stop_steps/20)
+        fitness -= (stop_steps/20) * 5
           
     return fitness
 
