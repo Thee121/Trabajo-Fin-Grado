@@ -100,7 +100,7 @@ def eval_genome(genome, config):
         if(lspeed == 0 and abs(rspeed)>0) or (rspeed == 0 and abs(lspeed >0)):
             turn_amount = 2
         
-        if not line_detected:
+        if not on_line:
             line_lost_steps += 1
         else:
             line_lost_steps = 0
@@ -148,35 +148,34 @@ def calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line
     fitness = 0
 
     if line_detected and avg_speed > 0.1:
-        inverse_alignment_factor = (1 - abs_alignment_factor)
-        fitness_factor = inverse_alignment_factor * (alignment_steps)
+        fitness_factor = (1 - abs_alignment_factor) * alignment_steps
         
         # Reward for detecting the line correctly. 
-        fitness += (fitness_factor * avg_speed)
+        fitness += fitness_factor * avg_speed
 
         # Extra reward depending on how well it is aligned
         if abs_alignment_factor < 0.1:
-            fitness += fitness_factor * 20
+            fitness += fitness_factor * 3
         elif abs_alignment_factor < 0.2:
-            fitness += fitness_factor * 15
+            fitness += fitness_factor * 2
         elif abs_alignment_factor < 0.3:
-            fitness += fitness_factor * 10
+            fitness += fitness_factor
 
     # Penalize time spent off the line
     if line_lost_steps > 0:
-        fitness -= (line_lost_steps) * 5
+        fitness -= line_lost_steps
         
     # Obstacle avoidance penalty
     if any(distance < 0.2 for distance in readings):
-        fitness -= (stuck_steps) * 3
+        fitness -= stuck_steps
         
     # Movement penalties
-    if turn_amount > 1: # Penalty for spinning too much
-        fitness -= (turn_steps) * 4
+    if turn_amount > 0: # Penalty for spinning too much
+        fitness -= turn_steps
     elif avg_speed < 0:  # Moving backwards
-        fitness -=  (backwards_steps) * 2
+        fitness -=  backwards_steps
     elif abs_avg_speed < 0.1: # Robot does not move
-        fitness -= (stop_steps)
+        fitness -= stop_steps
           
     return fitness
 
