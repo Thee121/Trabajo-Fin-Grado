@@ -12,6 +12,14 @@ neat_output_path = "output/neat_output.txt"
 Number_Generations = 50
 max_Training_Time = 600 # 20 steps equal one second
 
+line_lost_steps = 0
+backwards_steps = 0
+turn_steps = 0
+stuck_steps = 0
+stop_steps = 0
+alignment_steps = 0
+turn_amount = 0
+
 def count_files(directory):
     try:
         return sum(1 for item in os.listdir(directory) if os.path.isfile(os.path.join(directory, item)))
@@ -62,13 +70,6 @@ def eval_genome(genome, config):
     coppelia = robotica.Coppelia()
     robot = robotica.P3DX(coppelia.sim, 'PioneerP3DX', True)
     coppelia.start_simulation()
-
-    line_lost_steps = 0
-    backwards_steps = 0
-    turn_steps = 0
-    stuck_steps = 0
-    stop_steps = 0
-    alignment_steps = 0
     
     time_step= 0
 
@@ -90,20 +91,13 @@ def eval_genome(genome, config):
         avg_speed = (lspeed + rspeed) / 2
         turn_amountl = abs(lspeed - rspeed)
         turn_amountr = abs(rspeed -lspeed)
-        turn_amount = 0
         
-        if(turn_amountl > turn_amountr):
+        if(lspeed == 0 and abs(rspeed) > 0) or (rspeed == 0 and abs(lspeed > 0)):
+            turn_amount = 2
+        elif(turn_amountl > turn_amountr):
             turn_amount = turn_amountl
         else:
             turn_amount = turn_amountr
-        
-        if(lspeed == 0 and abs(rspeed)>0) or (rspeed == 0 and abs(lspeed >0)):
-            turn_amount = 2
-        
-        if not on_line:
-            line_lost_steps += 1
-        else:
-            line_lost_steps = 0
             
         if(avg_speed < 0):
             backwards_steps += 1
@@ -127,10 +121,12 @@ def eval_genome(genome, config):
         
         if(on_line):
             alignment_steps += 1
+            line_lost_steps = 0
         else:
             alignment_steps = 0
+            line_lost_steps += 1
 
-        fitness = calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line_lost_steps, backwards_steps, stop_steps, stuck_steps, alignment_steps, turn_steps, turn_amount)
+        fitness = calculate_fitness(line_detected, alignment_factor, readings, avg_speed, turn_amount)
         total_fitness += fitness
         time_step += 1
         
@@ -142,7 +138,7 @@ def eval_genomes(genomes, config):
         genome.fitness = eval_genome(genome, config)
         print(f"Genome {genome_id} fitness: {genome.fitness} \n")
         
-def calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line_lost_steps, backwards_steps, stop_steps, stuck_steps, alignment_steps, turn_steps, turn_amount):
+def calculate_fitness(line_detected, alignment_factor, readings, avg_speed, turn_amount):
     abs_alignment_factor = abs(alignment_factor)
     abs_avg_speed = abs(avg_speed)
     fitness = 0
@@ -207,7 +203,6 @@ def run_neat(config_path):
 def main():
     numFiles = count_files(checkpoint_path)
 
-    # Step 1: Check for best_genome.pkl
     if os.path.exists("best_genome.pkl"):
         answer = input("A trained model was found. Do you want to test it? (yes/no): ").strip().lower()
         if answer == "yes":
@@ -232,7 +227,7 @@ def main():
 
             coppelia.stop_simulation()
             print("Best genome test completed!")
-            return  # End program after testing
+            return
         
         else:
             answer2 = input("Do you want to delete the best_genome? (yes/no): ").strip().lower()
@@ -240,19 +235,16 @@ def main():
             if answer2 == "yes":
                 os.remove("best_genome.pkl")
 
-    # Step 2: Check for checkpoint files
     if numFiles == 0:
         print("No checkpoints found. Starting new training session.")
         run_neat(config_path)
         return
 
-    # Step 3: Ask if user wants to continue training from last checkpoint
     print("Checkpoint files detected.")
     answer = input("Do you want to continue training from the last checkpoint? (yes/no): ").strip().lower()
     if answer == "yes":
         run_neat(config_path)
     else:
-        # Delete all checkpoint files and neat_output file
         print("Deleting existing checkpoints and starting fresh training.")
         if os.path.exists(checkpoint_path):
             for file in os.listdir(checkpoint_path):
