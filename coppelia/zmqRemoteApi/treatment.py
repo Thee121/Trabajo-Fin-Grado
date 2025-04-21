@@ -45,9 +45,9 @@ def main():
                     gen = pop.generation
                     if gen % GRAPH_EVERY_X_GENERATIONS == 0:
                         generations.append(gen)
-                        avg_fitnesses.append(avg_fitness / 100)
-                        std_fitnesses.append(std_fitness / 100)
-                        best_fitnesses.append(best_fitness / 100)
+                        avg_fitnesses.append(avg_fitness/100)
+                        std_fitnesses.append(std_fitness/100)
+                        best_fitnesses.append(best_fitness/100)
 
                     out_file.write(f"Checkpoint: neat_checkpoint-{i}\n")
                     out_file.write(f"Generation: {gen}\n")
