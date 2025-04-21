@@ -71,8 +71,15 @@ def eval_genome(genome, config):
     robot = robotica.P3DX(coppelia.sim, 'PioneerP3DX', True)
     coppelia.start_simulation()
     
+    global line_lost_steps
+    global backwards_steps
+    global turn_steps
+    global stuck_steps
+    global stop_steps
+    global alignment_steps
+    global turn_amount
+    
     time_step= 0
-
     total_fitness = 0
     
     while coppelia.is_running() and time_step < max_Training_Time:
@@ -126,7 +133,7 @@ def eval_genome(genome, config):
             alignment_steps = 0
             line_lost_steps += 1
 
-        fitness = calculate_fitness(line_detected, alignment_factor, readings, avg_speed, turn_amount)
+        fitness = calculate_fitness(line_detected, alignment_factor, readings, avg_speed)
         total_fitness += fitness
         time_step += 1
         
@@ -138,10 +145,18 @@ def eval_genomes(genomes, config):
         genome.fitness = eval_genome(genome, config)
         print(f"Genome {genome_id} fitness: {genome.fitness} \n")
         
-def calculate_fitness(line_detected, alignment_factor, readings, avg_speed, turn_amount):
+def calculate_fitness(line_detected, alignment_factor, readings, avg_speed):
     abs_alignment_factor = abs(alignment_factor)
     abs_avg_speed = abs(avg_speed)
     fitness = 0
+    
+    global line_lost_steps
+    global backwards_steps
+    global turn_steps
+    global stuck_steps
+    global stop_steps
+    global alignment_steps
+    global turn_amount
 
     if line_detected and avg_speed > 0.1:
         fitness_factor = (1 - abs_alignment_factor) * alignment_steps
