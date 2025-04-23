@@ -19,6 +19,7 @@ def main():
 
     if num_files == 0:
         print("No checkpoint files found.")
+        print("Exiting program")
         return
 
     avg_fitnesses = []
@@ -45,9 +46,9 @@ def main():
                     gen = pop.generation
                     if gen % GRAPH_EVERY_X_GENERATIONS == 0:
                         generations.append(gen)
-                        avg_fitnesses.append(avg_fitness)
-                        std_fitnesses.append(std_fitness)
-                        best_fitnesses.append(best_fitness)
+                        avg_fitnesses.append(avg_fitness/100)
+                        std_fitnesses.append(std_fitness/100)
+                        best_fitnesses.append(best_fitness/100)
 
                     out_file.write(f"Checkpoint: neat_checkpoint-{i}\n")
                     out_file.write(f"Generation: {gen}\n")
@@ -64,6 +65,7 @@ def main():
                 except Exception as e:
                     print(f"Error reading checkpoint {checkpoint_path}: {e}")
 
+
     print(f"{checkpoints_treated} Checkpoint File{'s' if checkpoints_treated != 1 else ''} Treated. Information dumped in '/output/robot_info'")
 
     plot_graph(generations, avg_fitnesses, "Average Fitness Through Generations", "Generation", "Average Fitness", "avg_fitness.png")
@@ -72,6 +74,7 @@ def main():
     plot_combined_graph(generations, avg_fitnesses, std_fitnesses, best_fitnesses)
 
     print("Graphs Made and saved in '/output/Graphs'")
+    print("Exiting program")
 
 def plot_graph(x_data, y_data, title, xlabel, ylabel, filename):
     plt.figure()

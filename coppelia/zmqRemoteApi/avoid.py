@@ -12,14 +12,6 @@ neat_output_path = "output/neat_output.txt"
 Number_Generations = 50
 max_Training_Time = 600 # 20 steps equal one second
 
-line_lost_steps = 0
-backwards_steps = 0
-turn_steps = 0
-stuck_steps = 0
-stop_steps = 0
-alignment_steps = 0
-turn_amount = 0
-
 def count_files(directory):
     try:
         return sum(1 for item in os.listdir(directory) if os.path.isfile(os.path.join(directory, item)))
@@ -71,15 +63,15 @@ def eval_genome(genome, config):
     robot = robotica.P3DX(coppelia.sim, 'PioneerP3DX', True)
     coppelia.start_simulation()
     
-    global line_lost_steps
-    global backwards_steps
-    global turn_steps
-    global stuck_steps
-    global stop_steps
-    global alignment_steps
-    global turn_amount
-    
+    line_lost_steps = 0
+    backwards_steps = 0
+    turn_steps = 0
+    stuck_steps = 0
+    stop_steps = 0
+    alignment_steps = 0
+    turn_amount = 0
     time_step= 0
+    
     total_fitness = 0
     
     while coppelia.is_running() and time_step < max_Training_Time:
@@ -121,7 +113,7 @@ def eval_genome(genome, config):
         else:
             turn_steps = 0
         
-        if(abs(avg_speed) < 0.1):
+        if(avg_speed == 0):
             stop_steps += 1
         else:
             stop_steps = 0
@@ -136,7 +128,7 @@ def eval_genome(genome, config):
         if(stop_steps > 100 or turn_steps > 100 or stuck_steps > 100 or backwards_steps > 100):
             break
 
-        fitness = calculate_fitness(line_detected, alignment_factor, readings, avg_speed, time_step)
+        fitness = calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line_lost_steps, alignment_steps, backwards_steps, turn_steps, stuck_steps, stop_steps, turn_amount, time_step)
         total_fitness += fitness
         time_step += 1
         
@@ -148,32 +140,26 @@ def eval_genomes(genomes, config):
         genome.fitness = eval_genome(genome, config)
         print(f"Genome {genome_id} fitness: {genome.fitness} \n")
         
-def calculate_fitness(line_detected, alignment_factor, readings, avg_speed, time_step):
+def calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line_lost_steps, alignment_steps, backwards_steps, turn_steps, stuck_steps, stop_steps, turn_amount, time_step):
     abs_alignment_factor = abs(alignment_factor)
     abs_avg_speed = abs(avg_speed)
     fitness = 0
-    
-    global line_lost_steps
-    global backwards_steps
-    global turn_steps
-    global stuck_steps
-    global stop_steps
-    global alignment_steps
-    global turn_amount
 
     if line_detected and avg_speed > 0.1 and turn_amount < 1:
         fitness_factor = (1 - abs_alignment_factor) * alignment_steps * abs_avg_speed
         
         # Detecting the line correctly. 
-        fitness += fitness_factor * 2
+        fitness += fitness_factor
 
         # How well robot is aligned
         if abs_alignment_factor < 0.1:
-            fitness += fitness_factor * 5
-        elif abs_alignment_factor < 0.2:
             fitness += fitness_factor * 4
-        elif abs_alignment_factor < 0.3:
+        elif abs_alignment_factor < 0.2:
             fitness += fitness_factor * 3
+        elif abs_alignment_factor < 0.3:
+            fitness += fitness_factor * 2
+        elif abs_alignment_factor < 0.4:
+            fitness += fitness_factor 
 
     # Longer time and positive speed
     if(turn_amount < 1 and avg_speed > 0.1):
@@ -184,17 +170,17 @@ def calculate_fitness(line_detected, alignment_factor, readings, avg_speed, time
         fitness -= line_lost_steps
         
     # Obstacle avoidance penalty
-    if any(distance < 0.2 for distance in readings):
+    if any(distance < 0.1 for distance in readings):
         fitness -= stuck_steps
         
     # Movement penalties
     if turn_amount > 1: # Penalty for spinning too much
         fitness -= turn_steps
-    elif avg_speed < 0:  # Moving backwards
+    if avg_speed < 0:  # Moving backwards
         fitness -=  backwards_steps
-    elif abs_avg_speed < 0.1: # Robot does not move
+    if avg_speed == 0: # No movement
         fitness -= stop_steps
-          
+        
     return fitness
 
 def run_neat(config_path):
