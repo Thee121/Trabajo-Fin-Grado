@@ -10,7 +10,7 @@ config_path = "neat_config.txt"
 neat_output_path = "output/neat_output.txt"
 
 Number_Generations = 50
-max_Training_Time = 600 # 20 steps equal one second
+max_Training_Time = 900 # 20 steps equal one second
 
 def count_files(directory):
     try:
@@ -149,25 +149,25 @@ def calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line
         fitness_factor = (1 - abs_alignment_factor) * alignment_steps * abs_avg_speed
         
         # Detecting the line correctly. 
-        fitness += fitness_factor
+        fitness += fitness_factor  * 2
 
         # How well robot is aligned
         if abs_alignment_factor < 0.1:
-            fitness += fitness_factor * 4
+            fitness += fitness_factor * 11
         elif abs_alignment_factor < 0.2:
-            fitness += fitness_factor * 3
+            fitness += fitness_factor * 7
         elif abs_alignment_factor < 0.3:
-            fitness += fitness_factor * 2
+            fitness += fitness_factor * 4
         elif abs_alignment_factor < 0.4:
-            fitness += fitness_factor 
+            fitness += fitness_factor * 2
 
     # Longer time and positive speed
-    if(turn_amount < 1.5 and avg_speed > 0.1):
-        fitness += time_step * abs_avg_speed
+    if(turn_amount < 1 and avg_speed > 0.1):
+        fitness += time_step * abs_avg_speed  * 2
         
     # Penalize time spent off the line
     if line_lost_steps > 0:
-        fitness -= line_lost_steps
+        fitness -= line_lost_steps * 2
         
     # Obstacle avoidance penalty
     if any(distance < 0.2 for distance in readings):

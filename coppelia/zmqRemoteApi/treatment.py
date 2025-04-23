@@ -46,9 +46,9 @@ def main():
                     gen = pop.generation
                     if gen % GRAPH_EVERY_X_GENERATIONS == 0:
                         generations.append(gen)
-                        avg_fitnesses.append(avg_fitness/100)
-                        std_fitnesses.append(std_fitness/100)
-                        best_fitnesses.append(best_fitness/100)
+                        avg_fitnesses.append(avg_fitness)
+                        std_fitnesses.append(std_fitness)
+                        best_fitnesses.append(best_fitness)
 
                     out_file.write(f"Checkpoint: neat_checkpoint-{i}\n")
                     out_file.write(f"Generation: {gen}\n")
@@ -59,9 +59,19 @@ def main():
                     out_file.write(f"Standard Deviation: {std_fitness:.4f}\n")
                     out_file.write(f"Total Extinction: {'Yes' if extinct else 'No'}\n")
                     out_file.write("-" * 40 + "\n\n")
-
+                    
+                    if len(pop.species.species) > 1:
+                                out_file.write(f"Species Breakdown:\n")
+                                for sid, _ in pop.species.species.items():
+                                    s_fitnesses = [m.fitness for mid, m in pop.population.items() if pop.species.get_species_id(mid) == sid and m.fitness is not None]
+                                    s_avg = statistics.mean(s_fitnesses) if s_fitnesses else 0
+                                    s_best = max(s_fitnesses) if s_fitnesses else 0
+                                    s_std = statistics.stdev(s_fitnesses) if len(s_fitnesses) > 1 else 0
+                                    out_file.write(f"  - Species {sid}: Avg = {s_avg:.4f}, Best = {s_best:.4f}, Std = {s_std:.4f}\n")
+                    
+                    out_file.write("-" * 40 + "\n\n")
                     checkpoints_treated += 1
-
+                    
                 except Exception as e:
                     print(f"Error reading checkpoint {checkpoint_path}: {e}")
 
