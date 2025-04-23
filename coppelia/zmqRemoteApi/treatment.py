@@ -89,7 +89,7 @@ def plot_graph(x_data, y_data, title, xlabel, ylabel, filename):
 def plot_combined_graph(gens, avg, std, best, filename="combined_metrics.png"):
     plt.figure(figsize=(14, 7))
     plt.plot(gens, avg, label='Avg Fitness', color='blue', marker='o')
-    plt.plot(gens, std, label='Std Deviation', color='orange', marker='s')
+    #plt.plot(gens, std, label='Std Deviation', color='orange', marker='s')
     plt.plot(gens, best, label='Best Fitness', color='green', marker='d')
 
     plt.title("Combined Metrics Over Generations")

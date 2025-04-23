@@ -103,7 +103,7 @@ def eval_genome(genome, config):
         else:
             backwards_steps = 0
             
-        if any(distance < 0.1 for distance in readings):
+        if any(distance < 0.2 for distance in readings):
             stuck_steps += 1
         else:
             stuck_steps = 0
@@ -162,7 +162,7 @@ def calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line
             fitness += fitness_factor 
 
     # Longer time and positive speed
-    if(turn_amount < 1 and avg_speed > 0.1):
+    if(turn_amount < 1.5 and avg_speed > 0.1):
         fitness += time_step * abs_avg_speed
         
     # Penalize time spent off the line
@@ -170,7 +170,7 @@ def calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line
         fitness -= line_lost_steps
         
     # Obstacle avoidance penalty
-    if any(distance < 0.1 for distance in readings):
+    if any(distance < 0.2 for distance in readings):
         fitness -= stuck_steps
         
     # Movement penalties

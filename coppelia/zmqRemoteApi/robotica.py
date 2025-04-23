@@ -28,12 +28,10 @@ from coppeliasim_zmqremoteapi_client import RemoteAPIClient
 class Coppelia():
 
     def __init__(self):
-        print('*** Connecting to coppeliasim ***')
         client = RemoteAPIClient()
         self.sim = client.getObject('sim')
 
     def start_simulation(self):
-        print('*** Starting simulation ***')
         self.default_idle_fps = self.sim.getInt32Param(self.sim.intparam_idle_fps)
         self.sim.setInt32Param(self.sim.intparam_idle_fps, 0)
         self.sim.startSimulation()
