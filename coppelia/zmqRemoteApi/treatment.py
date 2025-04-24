@@ -32,6 +32,7 @@ def main():
 
     with open(Output_File, "w") as out_file:
         out_file.write("Checkpoint Summary:\n\n")
+        out_file.write("-" * 40 + "\n")
 
         for i in range(num_files):
             checkpoint_path = os.path.join(Checkpoint_Dir, f"neat_checkpoint-{i}")
@@ -73,8 +74,7 @@ def main():
                                     s_lowest = min(s_fitnesses) if s_fitnesses else 0
                                     s_std = statistics.stdev(s_fitnesses) if len(s_fitnesses) > 1 else 0
                                     out_file.write(f"  - Species {sid}: Avg = {s_avg:.4f}, Best = {s_best:.4f}, Lowest = {s_lowest:.4f}, Std = {s_std:.4f}\n")
-                    
-                    out_file.write("-" * 40 + "\n\n")
+                                    out_file.write("-" * 40 + "\n\n")
                     checkpoints_treated += 1
                     
                 except Exception as e:

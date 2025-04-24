@@ -10,7 +10,7 @@ config_path = "neat_config.txt"
 neat_output_path = "output/neat_output.txt"
 
 Number_Generations = 60
-max_Training_Time = 900 # 20 steps equal one second
+max_Training_Time = 1000 # 20 steps equal one second
 
 def count_files(directory):
     try:
@@ -125,7 +125,7 @@ def eval_genome(genome, config):
             alignment_steps = 0
             line_lost_steps += 1
             
-        if(stop_steps > 100 or turn_steps > 100 or stuck_steps > 100 or backwards_steps > 100):
+        if(stop_steps > 200 or turn_steps > 200 or stuck_steps > 200 or backwards_steps > 200):
             break
 
         fitness = calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line_lost_steps, alignment_steps, backwards_steps, turn_steps, stuck_steps, stop_steps, turn_amount, time_step)
