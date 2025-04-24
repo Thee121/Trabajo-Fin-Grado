@@ -26,6 +26,8 @@ def main():
     std_fitnesses = []
     best_fitnesses = []
     generations = []
+    lowest_fitnesses = []
+    
     checkpoints_treated = 0
 
     with open(Output_File, "w") as out_file:
@@ -42,20 +44,22 @@ def main():
                     best_fitness = max(fitnesses) if fitnesses else 0
                     std_fitness = statistics.stdev(fitnesses) if len(fitnesses) > 1 else 0
                     extinct = len(pop.species.species) == 0
-
+                    lowest_fitness = min(fitnesses) if fitnesses else 0
                     gen = pop.generation
                     if gen % GRAPH_EVERY_X_GENERATIONS == 0:
                         generations.append(gen)
-                        avg_fitnesses.append(avg_fitness)
-                        std_fitnesses.append(std_fitness)
-                        best_fitnesses.append(best_fitness)
-
+                        avg_fitnesses.append(avg_fitness / 100)
+                        std_fitnesses.append(std_fitness / 100)
+                        best_fitnesses.append(best_fitness / 100)
+                        lowest_fitnesses.append(lowest_fitness / 100)
+                        
                     out_file.write(f"Checkpoint: neat_checkpoint-{i}\n")
                     out_file.write(f"Generation: {gen}\n")
                     out_file.write(f"Total species: {len(pop.species.species)}\n")
                     out_file.write(f"Total genomes: {len(pop.population)}\n")
                     out_file.write(f"Average Fitness: {avg_fitness:.4f}\n")
                     out_file.write(f"Best Fitness: {best_fitness:.4f}\n")
+                    out_file.write(f"Lowest Fitness: {lowest_fitness:.4f}\n")
                     out_file.write(f"Standard Deviation: {std_fitness:.4f}\n")
                     out_file.write(f"Total Extinction: {'Yes' if extinct else 'No'}\n")
                     out_file.write("-" * 40 + "\n\n")
@@ -66,8 +70,9 @@ def main():
                                     s_fitnesses = [m.fitness for mid, m in pop.population.items() if pop.species.get_species_id(mid) == sid and m.fitness is not None]
                                     s_avg = statistics.mean(s_fitnesses) if s_fitnesses else 0
                                     s_best = max(s_fitnesses) if s_fitnesses else 0
+                                    s_lowest = min(s_fitnesses) if s_fitnesses else 0
                                     s_std = statistics.stdev(s_fitnesses) if len(s_fitnesses) > 1 else 0
-                                    out_file.write(f"  - Species {sid}: Avg = {s_avg:.4f}, Best = {s_best:.4f}, Std = {s_std:.4f}\n")
+                                    out_file.write(f"  - Species {sid}: Avg = {s_avg:.4f}, Best = {s_best:.4f}, Lowest = {s_lowest:.4f}, Std = {s_std:.4f}\n")
                     
                     out_file.write("-" * 40 + "\n\n")
                     checkpoints_treated += 1
@@ -81,7 +86,9 @@ def main():
     plot_graph(generations, avg_fitnesses, "Average Fitness Through Generations", "Generation", "Average Fitness", "avg_fitness.png")
     plot_graph(generations, std_fitnesses, "Standard Deviation Through Generations", "Generation", "Standard Deviation", "std_deviation.png")
     plot_graph(generations, best_fitnesses, "Best Fitness Through Generations", "Generation", "Best Fitness", "best_fitnesses.png")
-    plot_combined_graph(generations, avg_fitnesses, std_fitnesses, best_fitnesses)
+    plot_graph(generations, lowest_fitnesses, "Lowest Fitness Through Generations", "Generation", "Lowest Fitness", "lowest_fitnesses.png")
+
+    plot_combined_graph(generations, avg_fitnesses, std_fitnesses, best_fitnesses, lowest_fitnesses)
 
     print("Graphs Made and saved in '/output/Graphs'")
     print("Exiting program")
@@ -96,11 +103,13 @@ def plot_graph(x_data, y_data, title, xlabel, ylabel, filename):
     plt.savefig(os.path.join(Output_Graphs_Dir, filename))
     plt.close()
 
-def plot_combined_graph(gens, avg, std, best, filename="combined_metrics.png"):
+def plot_combined_graph(gens, avg, std, best, lowest, filename="combined_metrics.png"):
     plt.figure(figsize=(14, 7))
     plt.plot(gens, avg, label='Avg Fitness', color='blue', marker='o')
     #plt.plot(gens, std, label='Std Deviation', color='orange', marker='s')
     plt.plot(gens, best, label='Best Fitness', color='green', marker='d')
+    plt.plot(gens, lowest, label='Lowest Fitness', color='yellow', marker='d')
+
 
     plt.title("Combined Metrics Over Generations")
     plt.xlabel("Generation")

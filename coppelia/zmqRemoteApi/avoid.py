@@ -9,7 +9,7 @@ checkpoint_path = "checkpoints"
 config_path = "neat_config.txt"
 neat_output_path = "output/neat_output.txt"
 
-Number_Generations = 50
+Number_Generations = 60
 max_Training_Time = 900 # 20 steps equal one second
 
 def count_files(directory):
@@ -108,7 +108,7 @@ def eval_genome(genome, config):
         else:
             stuck_steps = 0
             
-        if(turn_amount > 1):
+        if(turn_amount > 1.5):
             turn_steps += 1
         else:
             turn_steps = 0
@@ -145,36 +145,34 @@ def calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line
     abs_avg_speed = abs(avg_speed)
     fitness = 0
 
-    if line_detected and avg_speed > 0.1 and turn_amount < 1:
+    if line_detected and avg_speed > 0.1 and turn_amount < 1.5:
         fitness_factor = (1 - abs_alignment_factor) * alignment_steps * abs_avg_speed
         
         # Detecting the line correctly. 
-        fitness += fitness_factor  * 2
+        fitness += fitness_factor  * 1.5
 
         # How well robot is aligned
         if abs_alignment_factor < 0.1:
-            fitness += fitness_factor * 11
+            fitness += fitness_factor * 12
         elif abs_alignment_factor < 0.2:
-            fitness += fitness_factor * 7
+            fitness += fitness_factor * 6
         elif abs_alignment_factor < 0.3:
-            fitness += fitness_factor * 4
-        elif abs_alignment_factor < 0.4:
-            fitness += fitness_factor * 2
+            fitness += fitness_factor * 3
 
     # Longer time and positive speed
-    if(turn_amount < 1 and avg_speed > 0.1):
-        fitness += time_step * abs_avg_speed  * 2
+    if(turn_amount < 1.5 and avg_speed > 0.1):
+        fitness += time_step * abs_avg_speed
         
     # Penalize time spent off the line
     if line_lost_steps > 0:
-        fitness -= line_lost_steps * 2
+        fitness -= line_lost_steps * 1.5
         
     # Obstacle avoidance penalty
     if any(distance < 0.2 for distance in readings):
         fitness -= stuck_steps
         
     # Movement penalties
-    if turn_amount > 1: # Penalty for spinning too much
+    if turn_amount > 1.5: # Penalty for spinning too much
         fitness -= turn_steps
     if avg_speed < 0:  # Moving backwards
         fitness -=  backwards_steps

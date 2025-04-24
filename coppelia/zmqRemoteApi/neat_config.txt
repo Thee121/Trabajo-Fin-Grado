@@ -13,7 +13,7 @@ activation_options      = tanh
 
 # node aggregation options
 aggregation_default     = sum
-aggregation_mutate_rate = 0.1
+aggregation_mutate_rate = 0.0
 aggregation_options     = sum
 
 # node bias options
@@ -76,5 +76,5 @@ max_stagnation       = 20
 species_elitism      = 2
 
 [DefaultReproduction]
-elitism            = 4
-survival_threshold = 0.3
+elitism            = 6
+survival_threshold = 0.35
