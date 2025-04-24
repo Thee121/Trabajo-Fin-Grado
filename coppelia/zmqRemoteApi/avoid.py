@@ -138,7 +138,7 @@ def eval_genome(genome, config):
 def eval_genomes(genomes, config):
     for genome_id, genome in genomes:
         genome.fitness = eval_genome(genome, config)
-        print(f"Genome {genome_id} fitness: {genome.fitness} \n")
+        print(f"Genome {genome_id} fitness: {genome.fitness}")
         
 def calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line_lost_steps, alignment_steps, backwards_steps, turn_steps, stuck_steps, stop_steps, turn_amount, time_step):
     abs_alignment_factor = abs(alignment_factor)
@@ -149,7 +149,7 @@ def calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line
         fitness_factor = (1 - abs_alignment_factor) * alignment_steps * abs_avg_speed
         
         # Detecting the line correctly. 
-        fitness += fitness_factor  * 1.5
+        fitness += fitness_factor  * 2
 
         # How well robot is aligned
         if abs_alignment_factor < 0.1:
@@ -161,23 +161,23 @@ def calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line
 
     # Longer time and positive speed
     if(turn_amount < 1.5 and avg_speed > 0.1):
-        fitness += time_step * abs_avg_speed
+        fitness += time_step * abs_avg_speed * 1.5
         
     # Penalize time spent off the line
     if line_lost_steps > 0:
-        fitness -= line_lost_steps * 1.5
+        fitness -= line_lost_steps * 2
         
     # Obstacle avoidance penalty
     if any(distance < 0.2 for distance in readings):
-        fitness -= stuck_steps
+        fitness -= stuck_steps * 1.5
         
     # Movement penalties
     if turn_amount > 1.5: # Penalty for spinning too much
-        fitness -= turn_steps
+        fitness -= turn_steps * 1.5
     if avg_speed < 0:  # Moving backwards
-        fitness -=  backwards_steps
+        fitness -=  backwards_steps * 1.5
     if avg_speed == 0: # No movement
-        fitness -= stop_steps
+        fitness -= stop_steps * 1.5
         
     return fitness
 
