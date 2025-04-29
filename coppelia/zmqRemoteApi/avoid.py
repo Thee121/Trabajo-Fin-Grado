@@ -9,8 +9,8 @@ checkpoint_path = "checkpoints"
 config_path = "neat_config.txt"
 neat_output_path = "output/neat_output.txt"
 
-Number_Generations = 60
-max_Training_Time = 1000 # 20 steps equal one second
+Number_Generations = 120
+max_Training_Time = 1200 # 20 steps equal one second
 
 def count_files(directory):
     try:
@@ -125,7 +125,7 @@ def eval_genome(genome, config):
             alignment_steps = 0
             line_lost_steps += 1
             
-        if(stop_steps > 200 or turn_steps > 200 or stuck_steps > 200 or backwards_steps > 200):
+        if(stop_steps > 300 or turn_steps > 300 or stuck_steps > 300 or backwards_steps > 300):
             break
 
         fitness = calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line_lost_steps, alignment_steps, backwards_steps, turn_steps, stuck_steps, stop_steps, turn_amount, time_step)
@@ -146,38 +146,40 @@ def calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line
     fitness = 0
 
     if line_detected and avg_speed > 0.1 and turn_amount < 1.5:
-        fitness_factor = (1 - abs_alignment_factor) * alignment_steps * abs_avg_speed
+        fitness_factor = (1 - abs_alignment_factor) * alignment_steps
         
         # Detecting the line correctly. 
         fitness += fitness_factor  * 2
 
         # How well robot is aligned
         if abs_alignment_factor < 0.1:
-            fitness += fitness_factor * 12
+            fitness += fitness_factor * 16
         elif abs_alignment_factor < 0.2:
-            fitness += fitness_factor * 6
+            fitness += fitness_factor * 8
         elif abs_alignment_factor < 0.3:
-            fitness += fitness_factor * 3
+            fitness += fitness_factor * 4
+        elif abs_alignment_factor < 0.4:
+            fitness += fitness_factor * 2
 
     # Longer time and positive speed
     if(turn_amount < 1.5 and avg_speed > 0.1):
-        fitness += time_step * abs_avg_speed * 1.5
+        fitness += time_step * abs_avg_speed * 2
         
     # Penalize time spent off the line
     if line_lost_steps > 0:
-        fitness -= line_lost_steps * 2
+        fitness -= line_lost_steps * 3
         
     # Obstacle avoidance penalty
     if any(distance < 0.2 for distance in readings):
-        fitness -= stuck_steps * 1.5
+        fitness -= stuck_steps * 2
         
     # Movement penalties
     if turn_amount > 1.5: # Penalty for spinning too much
-        fitness -= turn_steps * 1.5
+        fitness -= turn_steps * 2
     if avg_speed < 0:  # Moving backwards
-        fitness -=  backwards_steps * 1.5
+        fitness -=  backwards_steps * 2
     if avg_speed == 0: # No movement
-        fitness -= stop_steps * 1.5
+        fitness -= stop_steps * 2
         
     return fitness
 

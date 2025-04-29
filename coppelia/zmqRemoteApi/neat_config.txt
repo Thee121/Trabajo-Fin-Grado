@@ -1,7 +1,7 @@
 [NEAT]
 fitness_criterion     = max
 fitness_threshold     = 1
-pop_size              = 140
+pop_size              = 160
 reset_on_extinction   = False
 no_fitness_termination = True
 
@@ -13,7 +13,7 @@ activation_options      = tanh
 
 # node aggregation options
 aggregation_default     = sum
-aggregation_mutate_rate = 0.0
+aggregation_mutate_rate = 0.1
 aggregation_options     = sum
 
 # node bias options
@@ -76,5 +76,5 @@ max_stagnation       = 20
 species_elitism      = 2
 
 [DefaultReproduction]
-elitism            = 7
+elitism            = 8
 survival_threshold = 0.35
