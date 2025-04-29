@@ -1,6 +1,6 @@
 # Robotica
 
-This repository provides software tools for robots.  It includes [Python3](https://www.python.org/) code for managing the communication with robotic simulators such as [CoppeliaSim](https://www.coppeliarobotics.com/) and some samples of wheeled robot controllers.
+This repository provides software tools for robots.  It includes [Python3](https://www.python.org/) code for managing the communication with robotic simulators such as [CoppeliaSim](https://www.coppeliarobotics.com/).
 
 The repository can be downloaded and used as needed.  It is encouraged to maintain the original directory structure as in the repository.  It will be described any specific dependency between modules or scripts.
 
@@ -31,6 +31,6 @@ ALL possible variables that could be modified are easily modifiable, either at t
 The main class contains extra functionality aside from actually running the main function of the project. The program logic is as follows:
 1) Detects if a best_genome is present. If there is, asks user if it wants to train it. If the user answers with "yes", the program runs the genome. If the user answers negatively, the program advances to step 2.
 2) The program checks if there are any checkpoints in the folder. If there aren't, a new fresh session starts. If there are checkpoints present, the program advances to step 3
-3) Asks if you want to continue from the previous checkpoint. If the user answers with "yes", the program will continue from the previous checkpoint. If the users answers "no", a fresh NEAT training session will stasrt
+3) Asks if you want to continue from the previous checkpoint. If the user answers with "yes", the program will continue from the previous checkpoint. If the users answers "no", a fresh NEAT training session will start
 
-All the checkpoints of the neat library are dumped in the checkpoint directory after each checkpoint. If you want to see the information from all the checkpoints, you can run the treatment.py file to output all the information to robot_info.txt
+All the checkpoints of the neat library are dumped in the checkpoint directory after each checkpoint. If you want to see the information from all the checkpoints, you can run the treatment.py file to output all the information to robot_info.txt. Several graphs are also generated to better visualize the information over the generations. Except for standard deviation, all other appropiate information is combined to create a single graph to better study the robot's performance over the generations.
