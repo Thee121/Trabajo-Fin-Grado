@@ -7,10 +7,11 @@ import numpy as np
 
 checkpoint_path = "checkpoints"
 config_path = "neat_config.txt"
-neat_output_path = "output/neat_output.txt"
+robot_info_path = "output/robot_info.txt"
+graphs_path = "/output/Graphs"
 
-Number_Generations = 120
-max_Training_Time = 1200 # 20 steps equal one second
+Number_Generations = 100
+max_Training_Time = 1000 # 20 steps equal one second
 
 def count_files(directory):
     try:
@@ -125,7 +126,7 @@ def eval_genome(genome, config):
             alignment_steps = 0
             line_lost_steps += 1
             
-        if(stop_steps > 300 or turn_steps > 300 or stuck_steps > 300 or backwards_steps > 300):
+        if(stop_steps > 200 or turn_steps > 200 or stuck_steps > 200 or backwards_steps > 200):
             break
 
         fitness = calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line_lost_steps, alignment_steps, backwards_steps, turn_steps, stuck_steps, stop_steps, turn_amount, time_step)
@@ -146,20 +147,19 @@ def calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line
     fitness = 0
 
     if line_detected and avg_speed > 0.1 and turn_amount < 1.5:
-        fitness_factor = (1 - abs_alignment_factor) * alignment_steps
-        
+  
         # Detecting the line correctly. 
-        fitness += fitness_factor  * 2
+        fitness += alignment_steps
 
         # How well robot is aligned
         if abs_alignment_factor < 0.1:
-            fitness += fitness_factor * 16
+            fitness += alignment_steps * 5
         elif abs_alignment_factor < 0.2:
-            fitness += fitness_factor * 8
+            fitness += alignment_steps * 4
         elif abs_alignment_factor < 0.3:
-            fitness += fitness_factor * 4
+            fitness += alignment_steps * 3
         elif abs_alignment_factor < 0.4:
-            fitness += fitness_factor * 2
+            fitness += alignment_steps * 2
 
     # Longer time and positive speed
     if(turn_amount < 1.5 and avg_speed > 0.1):
@@ -175,9 +175,9 @@ def calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line
         
     # Movement penalties
     if turn_amount > 1.5: # Penalty for spinning too much
-        fitness -= turn_steps * 2
+        fitness -= turn_steps * 3
     if avg_speed < 0:  # Moving backwards
-        fitness -=  backwards_steps * 2
+        fitness -=  backwards_steps * 3
     if avg_speed == 0: # No movement
         fitness -= stop_steps * 2
         
@@ -212,36 +212,47 @@ def main():
     numFiles = count_files(checkpoint_path)
 
     if os.path.exists("best_genome.pkl"):
-        answer = input("A trained model was found. Do you want to test it? (yes/no): ").strip().lower()
-        if answer == "yes":
-            with open("best_genome.pkl", "rb") as f:
-                best_genome = pickle.load(f)
+        check1 = True
+        while(check1):
+            answer = input("A trained model was found. Do you want to test it? (yes/no): ").strip().lower()
+            if answer == "yes":
+                check1 = False
+                
+                with open("best_genome.pkl", "rb") as f:
+                    best_genome = pickle.load(f)
 
-            print("Testing best genome...")
-            best_net = neat.nn.FeedForwardNetwork.create(best_genome, neat.Config(
-                neat.DefaultGenome, neat.DefaultReproduction,
-                neat.DefaultSpeciesSet, neat.DefaultStagnation,
-                config_path
-            ))
+                print("Testing best genome...")
+                best_net = neat.nn.FeedForwardNetwork.create(best_genome, neat.Config(
+                    neat.DefaultGenome, neat.DefaultReproduction,
+                    neat.DefaultSpeciesSet, neat.DefaultStagnation,
+                    config_path
+                ))
+                
+                coppelia = robotica.Coppelia()
+                robot = robotica.P3DX(coppelia.sim, 'PioneerP3DX')
+                coppelia.start_simulation()
 
-            coppelia = robotica.Coppelia()
-            robot = robotica.P3DX(coppelia.sim, 'PioneerP3DX')
-            coppelia.start_simulation()
+                while coppelia.is_running():
+                    readings = robot.get_sonar()
+                    outputs = best_net.activate(readings)
+                    robot.set_speed(outputs[0], outputs[1])
 
-            while coppelia.is_running():
-                readings = robot.get_sonar()
-                outputs = best_net.activate(readings)
-                robot.set_speed(outputs[0], outputs[1])
-
-            coppelia.stop_simulation()
-            print("Best genome test completed!")
-            return
+                coppelia.stop_simulation()
+                print("Best genome test completed!")
+                return
         
-        else:
-            answer2 = input("Do you want to delete the best_genome? (yes/no): ").strip().lower()
-            
-            if answer2 == "yes":
-                os.remove("best_genome.pkl")
+            elif answer == "no":
+                check1 = False
+                check2 = True
+                while(check2):
+                    answer2 = input("Do you want to delete the best_genome?").strip().lower()
+                    if answer2 == "yes":
+                        os.remove("best_genome.pkl")
+                        check2 = False
+                    elif answer2 == "no":
+                        check2 = False
+                    else:
+                        print("Wrong answer! It is either 'yes' or 'no'")           
 
     if numFiles == 0:
         print("No checkpoints found. Starting new training session.")
@@ -249,26 +260,47 @@ def main():
         return
 
     print("Checkpoint files detected.")
-    answer = input("Do you want to continue training from the last checkpoint? (yes/no): ").strip().lower()
-    if answer == "yes":
-        run_neat(config_path)
-    else:
-        print("Deleting existing checkpoints and starting fresh training.")
-        if os.path.exists(checkpoint_path):
-            for file in os.listdir(checkpoint_path):
-                file_path = os.path.join(checkpoint_path, file)
+    check3 = True
+    while(check3):
+        answer = input("Continue training from last checkpoint? If you choose 'no', all checkpoint files will be deleted:").strip().lower()
+        if answer == "yes":
+            check3 = False
+            run_neat(config_path)
+        elif answer == "no":
+            check3 = False
+            
+            if os.path.exists(checkpoint_path):
+                for file in os.listdir(checkpoint_path):
+                    file_path = os.path.join(checkpoint_path, file)
+                    try:
+                        if os.path.isfile(file_path):
+                            os.remove(file_path)
+                    except Exception as e:
+                        print(f"Error deleting {file_path}: {e}")
+                print("Deleted all checkpoint files ")
+                        
+            if os.path.exists(robot_info_path):
                 try:
-                    if os.path.isfile(file_path):
-                        os.remove(file_path)
+                    open(robot_info_path, "w").close()
                 except Exception as e:
-                    print(f"Error deleting {file_path}: {e}")
-        if os.path.exists(neat_output_path):
-            try:
-                os.remove(neat_output_path)
-            except Exception as e:
-                print(f"Error deleting neat_output.txt: {e}")
-
-        run_neat(config_path)
+                    print(f"Error deleting robot_info.txt: {e}")
+                print("Emptied 'robot_info' file")
+            
+            if os.path.exists(graphs_path):
+                for file in os.listdir(graphs_path):
+                    file_path = os.path.join(graphs_path, file)
+                    try:
+                        if os.path.isfile(file_path):
+                            os.remove(file_path)
+                    except Exception as e:
+                        print(f"Error deleting {file_path}: {e}")
+                print("Deleted all the Graphs")
+            
+            print("Starting a fresh training.")            
+            run_neat(config_path)
+        
+        else:
+            print("Wrong answer! You can only answer with 'yes' or 'no'")
 
 if __name__ == '__main__':
     main()
