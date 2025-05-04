@@ -10,8 +10,8 @@ config_path = "neat_config.txt"
 robot_info_path = "output/robot_info.txt"
 graphs_path = "/output/Graphs"
 
-Number_Generations = 100
-max_Training_Time = 1000 # 20 steps equal one second
+Number_Generations = 120
+max_Training_Time = 1200 # 20 steps equal one second
 
 def count_files(directory):
     try:
@@ -149,37 +149,35 @@ def calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line
     if line_detected and avg_speed > 0.1 and turn_amount < 1.5:
   
         # Detecting the line correctly. 
-        fitness += alignment_steps
+        fitness += (alignment_steps/20) * 2
 
         # How well robot is aligned
         if abs_alignment_factor < 0.1:
-            fitness += alignment_steps * 5
+            fitness += (alignment_steps/20) * 16
         elif abs_alignment_factor < 0.2:
-            fitness += alignment_steps * 4
+            fitness += (alignment_steps/20) * 8
         elif abs_alignment_factor < 0.3:
-            fitness += alignment_steps * 3
-        elif abs_alignment_factor < 0.4:
-            fitness += alignment_steps * 2
+            fitness += (alignment_steps/20) * 4
 
     # Longer time and positive speed
     if(turn_amount < 1.5 and avg_speed > 0.1):
-        fitness += time_step * abs_avg_speed * 2
+        fitness += (time_step/20) * abs_avg_speed * 2
         
     # Penalize time spent off the line
     if line_lost_steps > 0:
-        fitness -= line_lost_steps * 3
+        fitness -= (line_lost_steps/20) * 4
         
     # Obstacle avoidance penalty
     if any(distance < 0.2 for distance in readings):
-        fitness -= stuck_steps * 2
+        fitness -= (stuck_steps/20) * 2
         
     # Movement penalties
     if turn_amount > 1.5: # Penalty for spinning too much
-        fitness -= turn_steps * 3
+        fitness -= (turn_steps/20) * 3
     if avg_speed < 0:  # Moving backwards
-        fitness -=  backwards_steps * 3
+        fitness -=  (backwards_steps/20) * 3
     if avg_speed == 0: # No movement
-        fitness -= stop_steps * 2
+        fitness -= (stop_steps/20) * 2
         
     return fitness
 
