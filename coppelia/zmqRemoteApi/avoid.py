@@ -104,7 +104,7 @@ def eval_genome(genome, config):
         else:
             backwards_steps = 0
             
-        if any(distance < 0.2 for distance in readings):
+        if any(distance < 0.1 for distance in readings):
             stuck_steps += 1
         else:
             stuck_steps = 0
@@ -168,7 +168,7 @@ def calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line
         fitness -= (line_lost_steps/20) * 4
         
     # Obstacle avoidance penalty
-    if any(distance < 0.2 for distance in readings):
+    if any(distance < 0.1 for distance in readings):
         fitness -= (stuck_steps/20) * 2
         
     # Movement penalties
