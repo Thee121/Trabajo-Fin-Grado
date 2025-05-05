@@ -105,6 +105,7 @@ def eval_genome(genome, config):
             backwards_steps = 0
             
         if any(distance < 0.1 for distance in readings):
+        if any(distance < 0.1 for distance in readings):
             stuck_steps += 1
         else:
             stuck_steps = 0
@@ -126,7 +127,7 @@ def eval_genome(genome, config):
             alignment_steps = 0
             line_lost_steps += 1
             
-        if(stop_steps > 200 or turn_steps > 200 or stuck_steps > 200 or backwards_steps > 200):
+        if(stop_steps > 100 or turn_steps > 100 or stuck_steps > 100 or backwards_steps > 100):
             break
 
         fitness = calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line_lost_steps, alignment_steps, backwards_steps, turn_steps, stuck_steps, stop_steps, turn_amount, time_step)
@@ -148,6 +149,8 @@ def calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line
 
     if line_detected and avg_speed > 0.1 and turn_amount < 1.5:
         # How well robot is aligned
+        if abs_alignment_factor < 0.05:
+            fitness += alignment_steps * 16
         if abs_alignment_factor < 0.1:
             fitness += alignment_steps * 4
         elif abs_alignment_factor < 0.2:
@@ -159,6 +162,7 @@ def calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line
 
     # Longer time and positive speed
     if(turn_amount < 1.5 and avg_speed > 0.1):
+        fitness += time_step * abs_avg_speed
         fitness += time_step * abs_avg_speed
         
     # Penalize time spent off the line
