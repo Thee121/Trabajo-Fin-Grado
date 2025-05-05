@@ -11,7 +11,7 @@ robot_info_path = "output/robot_info.txt"
 graphs_path = "/output/Graphs"
 
 Number_Generations = 100
-max_Training_Time = 1000 # 20 steps equal one second
+max_Training_Time = 1200 # 20 steps equal one second
 
 def count_files(directory):
     try:
@@ -104,7 +104,7 @@ def eval_genome(genome, config):
         else:
             backwards_steps = 0
             
-        if any(distance < 0.2 for distance in readings):
+        if any(distance < 0.1 for distance in readings):
             stuck_steps += 1
         else:
             stuck_steps = 0
@@ -147,39 +147,35 @@ def calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line
     fitness = 0
 
     if line_detected and avg_speed > 0.1 and turn_amount < 1.5:
-  
-        # Detecting the line correctly. 
-        fitness += alignment_steps
-
         # How well robot is aligned
         if abs_alignment_factor < 0.1:
-            fitness += alignment_steps * 5
-        elif abs_alignment_factor < 0.2:
             fitness += alignment_steps * 4
-        elif abs_alignment_factor < 0.3:
+        elif abs_alignment_factor < 0.2:
             fitness += alignment_steps * 3
-        elif abs_alignment_factor < 0.4:
+        elif abs_alignment_factor < 0.3:
             fitness += alignment_steps * 2
+        elif abs_alignment_factor < 0.4:
+            fitness += alignment_steps
 
     # Longer time and positive speed
     if(turn_amount < 1.5 and avg_speed > 0.1):
-        fitness += time_step * abs_avg_speed * 2
+        fitness += time_step * abs_avg_speed
         
     # Penalize time spent off the line
     if line_lost_steps > 0:
-        fitness -= line_lost_steps * 3
+        fitness -= line_lost_steps
         
     # Obstacle avoidance penalty
-    if any(distance < 0.2 for distance in readings):
-        fitness -= stuck_steps * 2
+    if any(distance < 0.1 for distance in readings):
+        fitness -= stuck_steps
         
     # Movement penalties
-    if turn_amount > 1.5: # Penalty for spinning too much
-        fitness -= turn_steps * 3
+    if turn_amount > 1.5: # Spinning too much
+        fitness -= turn_steps 
     if avg_speed < 0:  # Moving backwards
-        fitness -=  backwards_steps * 3
+        fitness -=  backwards_steps
     if avg_speed == 0: # No movement
-        fitness -= stop_steps * 2
+        fitness -= stop_steps
         
     return fitness
 
