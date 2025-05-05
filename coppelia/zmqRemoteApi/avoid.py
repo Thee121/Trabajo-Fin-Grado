@@ -23,22 +23,17 @@ def count_files(directory):
 def process_camera_image(img):
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-    # Define red in HSV
-    lower_red1 = np.array([0, 70, 50])
-    upper_red1 = np.array([10, 255, 255])
-    lower_red2 = np.array([170, 70, 50])
-    upper_red2 = np.array([180, 255, 255])
+    # Define HSV range for blue
+    lower_blue = np.array([100, 150, 50])
+    upper_blue = np.array([130, 255, 255])
 
-    # Red mask
-    mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
-    mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
-    mask = cv2.bitwise_or(mask1, mask2)
+    mask = cv2.inRange(hsv, lower_blue, upper_blue)
 
     # Check if line is at the bottom
     height = mask.shape[0]
     bottom_region = mask[int(height * 0.9):, :]
 
-    on_line = cv2.countNonZero(bottom_region) > 5
+    on_line = cv2.countNonZero(bottom_region) > 10
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     line_detected = False
     cx = None
@@ -62,7 +57,6 @@ def eval_genome(genome, config):
     net = neat.nn.FeedForwardNetwork.create(genome, config)
     coppelia = robotica.Coppelia()
     robot = robotica.P3DX(coppelia.sim, 'PioneerP3DX', True)
-    coppelia.start_simulation()
     
     line_lost_steps = 0
     backwards_steps = 0
@@ -73,8 +67,8 @@ def eval_genome(genome, config):
     turn_amount = 0
     time_step= 0
     
-    total_fitness = 0
-    
+    coppelia.start_simulation()
+       
     while coppelia.is_running() and time_step < max_Training_Time:
         readings = robot.get_sonar()
         img = robot.get_image()
@@ -101,83 +95,69 @@ def eval_genome(genome, config):
             
         if(avg_speed < 0):
             backwards_steps += 1
-        else:
-            backwards_steps = 0
             
         if any(distance < 0.1 for distance in readings):
-        if any(distance < 0.1 for distance in readings):
             stuck_steps += 1
-        else:
-            stuck_steps = 0
             
         if(turn_amount > 1.5):
             turn_steps += 1
-        else:
-            turn_steps = 0
         
         if(avg_speed == 0):
             stop_steps += 1
-        else:
-            stop_steps = 0
         
         if(on_line):
             alignment_steps += 1
-            line_lost_steps = 0
         else:
-            alignment_steps = 0
             line_lost_steps += 1
             
         if(stop_steps > 100 or turn_steps > 100 or stuck_steps > 100 or backwards_steps > 100):
             break
 
-        fitness = calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line_lost_steps, alignment_steps, backwards_steps, turn_steps, stuck_steps, stop_steps, turn_amount, time_step)
-        total_fitness += fitness
         time_step += 1
         
     coppelia.stop_simulation()
-    return total_fitness
+    fitness = calculate_fitness(line_detected, alignment_factor, avg_speed, line_lost_steps, alignment_steps, backwards_steps, turn_steps, stuck_steps, stop_steps, turn_amount, time_step)
+    return fitness
 
 def eval_genomes(genomes, config):
     for genome_id, genome in genomes:
         genome.fitness = eval_genome(genome, config)
         print(f"Genome {genome_id} fitness: {genome.fitness}")
         
-def calculate_fitness(line_detected, alignment_factor, readings, avg_speed, line_lost_steps, alignment_steps, backwards_steps, turn_steps, stuck_steps, stop_steps, turn_amount, time_step):
+def calculate_fitness(line_detected, alignment_factor, avg_speed, line_lost_steps, alignment_steps, backwards_steps, turn_steps, stuck_steps, stop_steps, turn_amount, time_step):
     abs_alignment_factor = abs(alignment_factor)
-    abs_avg_speed = abs(avg_speed)
     fitness = 0
-
-    if line_detected and avg_speed > 0.1 and turn_amount < 1.5:
-        # How well robot is aligned
-        if abs_alignment_factor < 0.05:
-            fitness += alignment_steps * 16
-        if abs_alignment_factor < 0.1:
-            fitness += alignment_steps * 4
-        elif abs_alignment_factor < 0.2:
-            fitness += alignment_steps * 3
-        elif abs_alignment_factor < 0.3:
-            fitness += alignment_steps * 2
-        elif abs_alignment_factor < 0.4:
-            fitness += alignment_steps
-
-    # Longer time and positive speed
-    if(turn_amount < 1.5 and avg_speed > 0.1):
-        fitness += time_step * abs_avg_speed
-        fitness += time_step * abs_avg_speed
+    
+    # Positive speed and no circles   
+    if avg_speed > 0.1 and turn_amount < 1.5:
+        fitness += time_step
         
-    # Penalize time spent off the line
+        # How well robot is aligned
+        if line_detected:
+            if abs_alignment_factor < 0.1:
+                fitness += alignment_steps * 5
+            elif abs_alignment_factor < 0.2:
+                fitness += alignment_steps * 4
+            elif abs_alignment_factor < 0.3:
+                fitness += alignment_steps * 3
+            elif abs_alignment_factor < 0.4:
+                fitness += alignment_steps * 2
+            elif abs_alignment_factor < 0.5:
+                fitness += alignment_steps                
+
+    # Time spent off the line
     if line_lost_steps > 0:
         fitness -= line_lost_steps
         
-    # Obstacle avoidance penalty
-    if any(distance < 0.1 for distance in readings):
+    # Obstacle avoidance
+    if stuck_steps > 0:
         fitness -= stuck_steps
         
     # Movement penalties
     if turn_amount > 1.5: # Spinning too much
         fitness -= turn_steps 
     if avg_speed < 0:  # Moving backwards
-        fitness -=  backwards_steps
+        fitness -= backwards_steps
     if avg_speed == 0: # No movement
         fitness -= stop_steps
         
@@ -253,7 +233,9 @@ def main():
                         check2 = False
                     else:
                         print("Wrong answer! It is either 'yes' or 'no'")           
-
+            else:
+                print("Wrong answer! It is either 'yes' or 'no'")
+                
     if numFiles == 0:
         print("No checkpoints found. Starting new training session.")
         run_neat(config_path)
@@ -283,7 +265,7 @@ def main():
                 try:
                     open(robot_info_path, "w").close()
                 except Exception as e:
-                    print(f"Error deleting robot_info.txt: {e}")
+                    print(f"Error emptying 'robot_info' file: {e}")
                 print("Emptied 'robot_info' file")
             
             if os.path.exists(graphs_path):
