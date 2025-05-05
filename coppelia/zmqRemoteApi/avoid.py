@@ -24,9 +24,8 @@ def process_camera_image(img):
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
     # Define HSV range for blue
-    lower_blue = np.array([0, 255, 255])
-    upper_blue = np.array([0, 0, 255])
-
+    lower_blue = np.array([118, 240, 240])
+    upper_blue = np.array([122, 255, 255])
     mask = cv2.inRange(hsv, lower_blue, upper_blue)
 
     # Check if line is at the bottom
@@ -105,9 +104,10 @@ def eval_genome(genome, config):
         if(avg_speed == 0):
             stop_steps += 1
         
-        if(on_line):
+        if on_line :
             alignment_steps += 1
-        else:
+        
+        if not line_detected:
             line_lost_steps += 1
             
         if(stop_steps > 100 or turn_steps > 100 or stuck_steps > 100 or backwards_steps > 100):
