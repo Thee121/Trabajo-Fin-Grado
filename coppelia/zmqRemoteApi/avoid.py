@@ -11,7 +11,7 @@ robot_info_path = "output/robot_info.txt"
 graphs_path = "/output/Graphs"
 
 Number_Generations = 100
-max_Training_Time = 1200 # 20 steps equal one second
+max_Training_Time = 600 # 20 steps equal one second
 
 def count_files(directory):
     try:
@@ -24,8 +24,8 @@ def process_camera_image(img):
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
     # Define HSV range for blue
-    lower_blue = np.array([100, 150, 50])
-    upper_blue = np.array([130, 255, 255])
+    lower_blue = np.array([0, 255, 255])
+    upper_blue = np.array([0, 0, 255])
 
     mask = cv2.inRange(hsv, lower_blue, upper_blue)
 
