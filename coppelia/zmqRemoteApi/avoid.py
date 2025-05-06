@@ -5,13 +5,13 @@ import os
 import cv2
 import numpy as np
 
-checkpoint_path = "checkpoints"
+checkpoint_path = "/output/checkpoints"
 config_path = "neat_config.txt"
 robot_info_path = "output/robot_info.txt"
 graphs_path = "/output/Graphs"
 
 Number_Generations = 100
-max_Training_Time = 600 # 20 steps equal one second
+max_Training_Time = 1000 # 20 steps equal one second
 
 def count_files(directory):
     try:
@@ -135,11 +135,11 @@ def calculate_fitness(line_detected, alignment_factor, avg_speed, line_lost_step
         # How well robot is aligned
         if line_detected:
             if abs_alignment_factor < 0.1:
-                fitness += alignment_steps * 5
+                fitness += alignment_steps * 11
             elif abs_alignment_factor < 0.2:
-                fitness += alignment_steps * 4
+                fitness += alignment_steps * 7
             elif abs_alignment_factor < 0.3:
-                fitness += alignment_steps * 3
+                fitness += alignment_steps * 4
             elif abs_alignment_factor < 0.4:
                 fitness += alignment_steps * 2
             elif abs_alignment_factor < 0.5:
