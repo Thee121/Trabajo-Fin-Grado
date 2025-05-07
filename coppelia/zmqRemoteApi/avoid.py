@@ -11,7 +11,7 @@ robot_info_path = "output/robot_info.txt"
 graphs_path = "output/graphs"
 
 Number_Generations = 120
-max_Training_Time = 600 # 20 steps equal one second
+max_Training_Time = 800 # 20 steps equal one second
 
 def count_files(directory):
     try:
@@ -123,7 +123,7 @@ def eval_genome(genome, config):
             line_lost_steps += 1
             alignment_steps = 0
             
-        if(stop_steps > 100 or turn_steps > 100 or stuck_steps > 100 or backwards_steps > 100):
+        if(stop_steps > 200 or turn_steps > 200 or stuck_steps > 200 or backwards_steps > 200):
             break
 
         time_step += 1
