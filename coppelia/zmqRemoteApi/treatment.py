@@ -94,7 +94,7 @@ def main():
     print("Exiting program")
 
 def plot_graph(x_data, y_data, title, xlabel, ylabel, filename):
-    plt.figure()
+    plt.figure(figsize=(20, 10))
     plt.plot(x_data, y_data, marker='o', color='b', label=ylabel)
     plt.title(title)
     plt.xlabel(xlabel)
@@ -104,9 +104,9 @@ def plot_graph(x_data, y_data, title, xlabel, ylabel, filename):
     plt.close()
 
 def plot_combined_graph(gens, avg, std, best, lowest, filename="combined_metrics.png"):
-    plt.figure(figsize=(14, 7))
+    plt.figure(figsize=(20, 10))
     plt.plot(gens, avg, label='Avg Fitness', color='blue', marker='o')
-    #plt.plot(gens, std, label='Std Deviation', color='orange', marker='s')
+    plt.plot(gens, std, label='Std Deviation', color='orange', marker='s')
     plt.plot(gens, best, label='Best Fitness', color='green', marker='d')
     plt.plot(gens, lowest, label='Lowest Fitness', color='yellow', marker='d')
 

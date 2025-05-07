@@ -10,7 +10,7 @@ config_path = "neat_config.txt"
 robot_info_path = "output/robot_info.txt"
 graphs_path = "output/graphs"
 
-Number_Generations = 120
+Number_Generations = 80
 max_Training_Time = 800 # 20 steps equal one second
 
 def count_files(directory):
@@ -45,7 +45,6 @@ def eval_genome(genome, config):
     coppelia = robotica.Coppelia()
     robot = robotica.P3DX(coppelia.sim, 'PioneerP3DX', True)
     
-    line_lost_steps = 0
     backwards_steps = 0
     turn_steps = 0
     stuck_steps = 0
@@ -58,7 +57,7 @@ def eval_genome(genome, config):
     
     coppelia.start_simulation()
        
-    while coppelia.is_running():
+    while coppelia.is_running() and time_step < max_Training_Time:
         readings = robot.get_sonar()
         img = robot.get_image()
         on_line  = process_camera_image(img)
@@ -103,10 +102,8 @@ def eval_genome(genome, config):
             
         if on_line:
             alignment_steps += 1
-            line_lost_steps = 0
         
         else:
-            line_lost_steps += 1
             alignment_steps = 0
             
         if(stop_steps > 200 or turn_steps > 200 or stuck_steps > 200 or backwards_steps > 200):
@@ -114,8 +111,8 @@ def eval_genome(genome, config):
 
         time_step += 1
 
-        fitness = calculate_fitness(avg_speed, turn_amount, alignment_steps/20, backwards_steps/20, turn_steps/20, stuck_steps/20, stop_steps/20, time_step/20, line_lost_steps/20)
-        total_fitness += fitness
+        fitness = calculate_fitness(avg_speed, turn_amount, alignment_steps/20, backwards_steps/20, turn_steps/20, stuck_steps/20, stop_steps/20, time_step/20)
+        total_fitness += int(fitness)
         
     coppelia.stop_simulation()
     return total_fitness
@@ -125,20 +122,17 @@ def eval_genomes(genomes, config):
         genome.fitness = eval_genome(genome, config)
         print(f"Genome {genome_id} fitness: {genome.fitness}")
         
-def calculate_fitness(avg_speed, turn_amount, alignment_steps, backwards_steps, turn_steps, stuck_steps, stop_steps, time_step, line_lost_steps):
+def calculate_fitness(avg_speed, turn_amount, alignment_steps, backwards_steps, turn_steps, stuck_steps, stop_steps, time_step):
     fitness = 0
     
     # Positive speed and no circles   
     if avg_speed > 0.1 and turn_amount < 1.5:
         
         # General Movement
-        fitness + time_step * abs(avg_speed)
+        fitness + time_step
         
         # Robot is on the line
         fitness += alignment_steps
-
-    #Not on the line
-    fitness -= line_lost_steps
     
     # Obstacle avoidance
     if stuck_steps > 0:
