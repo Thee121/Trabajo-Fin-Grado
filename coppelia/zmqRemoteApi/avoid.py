@@ -5,13 +5,13 @@ import os
 import cv2
 import numpy as np
 
-checkpoint_path = "/output/checkpoints"
+checkpoint_path = "output/checkpoints"
 config_path = "neat_config.txt"
 robot_info_path = "output/robot_info.txt"
-graphs_path = "/output/Graphs"
+graphs_path = "output/graphs"
 
 Number_Generations = 100
-max_Training_Time = 1000 # 20 steps equal one second
+max_Training_Time = 1200 # 20 steps equal one second
 
 def count_files(directory):
     try:
@@ -74,7 +74,7 @@ def eval_genome(genome, config):
         line_detected, cx, on_line  = process_camera_image(img)
         
         image_center = img.shape[1] // 2 if img is not None else 0
-        alignment_factor = ((cx - image_center) / image_center) if line_detected else 0
+        alignment_factor = ((cx - image_center) / image_center) if line_detected else 1
         
         outputs = net.activate(readings)
         lspeed = outputs[0]
@@ -104,13 +104,13 @@ def eval_genome(genome, config):
         if(avg_speed == 0):
             stop_steps += 1
         
-        if on_line :
+        if on_line:
             alignment_steps += 1
         
-        if not line_detected:
+        else:
             line_lost_steps += 1
             
-        if(stop_steps > 100 or turn_steps > 100 or stuck_steps > 100 or backwards_steps > 100):
+        if(stop_steps > 300 or turn_steps > 300 or stuck_steps > 300 or backwards_steps > 300):
             break
 
         time_step += 1
@@ -133,19 +133,16 @@ def calculate_fitness(line_detected, alignment_factor, avg_speed, line_lost_step
         fitness += time_step
         
         # How well robot is aligned
-        if line_detected:
-            if abs_alignment_factor < 0.1:
-                fitness += alignment_steps * 11
-            elif abs_alignment_factor < 0.2:
-                fitness += alignment_steps * 7
-            elif abs_alignment_factor < 0.3:
-                fitness += alignment_steps * 4
-            elif abs_alignment_factor < 0.4:
-                fitness += alignment_steps * 2
-            elif abs_alignment_factor < 0.5:
-                fitness += alignment_steps                
+        if abs_alignment_factor < 0.1:
+            fitness += alignment_steps * 8
+        elif abs_alignment_factor < 0.2:
+            fitness += alignment_steps * 4
+        elif abs_alignment_factor < 0.3:
+            fitness += alignment_steps * 2
+        elif abs_alignment_factor < 0.4:
+            fitness += alignment_steps
 
-    # Time spent off the line
+    # Not ON the line
     if line_lost_steps > 0:
         fitness -= line_lost_steps
         
