@@ -10,8 +10,8 @@ config_path = "neat_config.txt"
 robot_info_path = "output/robot_info.txt"
 graphs_path = "output/graphs"
 
-Number_Generations = 100
-max_Training_Time = 1200 # 20 steps equal one second
+Number_Generations = 120
+max_Training_Time = 600 # 20 steps equal one second
 
 def count_files(directory):
     try:
@@ -49,8 +49,10 @@ def process_camera_image(img):
         cx = int(M["m10"] / M["m00"])
         line_detected = True
         break
-
-    return line_detected, cx, on_line
+    
+    image_center = img.shape[1] // 2 if img is not None else 0
+    alignment_factor = ((cx - image_center) / image_center) if line_detected else 1
+    return alignment_factor, on_line
 
 def eval_genome(genome, config):    
     net = neat.nn.FeedForwardNetwork.create(genome, config)
@@ -66,20 +68,21 @@ def eval_genome(genome, config):
     turn_amount = 0
     time_step= 0
     
+    total_fitness = 0
+    
     coppelia.start_simulation()
        
     while coppelia.is_running() and time_step < max_Training_Time:
         readings = robot.get_sonar()
         img = robot.get_image()
-        line_detected, cx, on_line  = process_camera_image(img)
-        
-        image_center = img.shape[1] // 2 if img is not None else 0
-        alignment_factor = ((cx - image_center) / image_center) if line_detected else 1
+        alignment_factor, on_line  = process_camera_image(img)
         
         outputs = net.activate(readings)
         lspeed = outputs[0]
         rspeed = outputs[1]
         robot.set_speed(lspeed, rspeed)
+        
+        fitness = 0
         
         avg_speed = (lspeed + rspeed) / 2
         turn_amountl = abs(lspeed - rspeed)
@@ -94,58 +97,69 @@ def eval_genome(genome, config):
             
         if(avg_speed < 0):
             backwards_steps += 1
-            
+        else:
+            backwards_steps = 0
+               
         if any(distance < 0.1 for distance in readings):
             stuck_steps += 1
+        else:
+            stuck_steps = 0
             
         if(turn_amount > 1.5):
             turn_steps += 1
+        else:
+            turn_steps = 0
         
         if(avg_speed == 0):
             stop_steps += 1
-        
+        else:
+            stop_steps = 0
+            
         if on_line:
             alignment_steps += 1
+            line_lost_steps = 0
         
         else:
             line_lost_steps += 1
+            alignment_steps = 0
             
-        if(stop_steps > 300 or turn_steps > 300 or stuck_steps > 300 or backwards_steps > 300):
+        if(stop_steps > 100 or turn_steps > 100 or stuck_steps > 100 or backwards_steps > 100):
             break
 
         time_step += 1
+        abs_alignment_factor = abs(alignment_factor)
+
+        fitness = calculate_fitness(abs_alignment_factor, avg_speed, turn_amount, alignment_steps/20, backwards_steps/20, turn_steps/20, stuck_steps/20, stop_steps/20, time_step/20)
+        total_fitness += fitness
         
     coppelia.stop_simulation()
-    fitness = calculate_fitness(line_detected, alignment_factor, avg_speed, line_lost_steps, alignment_steps, backwards_steps, turn_steps, stuck_steps, stop_steps, turn_amount, time_step)
-    return fitness
+    return total_fitness
 
 def eval_genomes(genomes, config):
     for genome_id, genome in genomes:
         genome.fitness = eval_genome(genome, config)
         print(f"Genome {genome_id} fitness: {genome.fitness}")
         
-def calculate_fitness(line_detected, alignment_factor, avg_speed, line_lost_steps, alignment_steps, backwards_steps, turn_steps, stuck_steps, stop_steps, turn_amount, time_step):
-    abs_alignment_factor = abs(alignment_factor)
+def calculate_fitness(alignment_factor, avg_speed, turn_amount, alignment_steps, backwards_steps, turn_steps, stuck_steps, stop_steps, time_step):
     fitness = 0
     
     # Positive speed and no circles   
     if avg_speed > 0.1 and turn_amount < 1.5:
-        fitness += time_step
         
-        # How well robot is aligned
-        if abs_alignment_factor < 0.1:
-            fitness += alignment_steps * 8
-        elif abs_alignment_factor < 0.2:
-            fitness += alignment_steps * 4
-        elif abs_alignment_factor < 0.3:
-            fitness += alignment_steps * 2
-        elif abs_alignment_factor < 0.4:
-            fitness += alignment_steps
+        angle_line = 1 - alignment_factor
+        fitness_factor = time_step * angle_line
+        
+        # General movement
+        fitness += fitness_factor + alignment_steps
 
-    # Not ON the line
-    if line_lost_steps > 0:
-        fitness -= line_lost_steps
-        
+        # How well robot is aligned
+        if alignment_factor < 0.1:
+            fitness += fitness_factor + alignment_steps * 3
+        elif alignment_factor < 0.2:
+            fitness += fitness_factor + alignment_steps * 2
+        elif alignment_factor < 0.3:
+            fitness += fitness_factor + alignment_steps
+
     # Obstacle avoidance
     if stuck_steps > 0:
         fitness -= stuck_steps
