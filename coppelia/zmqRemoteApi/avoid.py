@@ -67,7 +67,7 @@ def eval_genome(genome, config):
     
     coppelia.start_simulation()
        
-    while coppelia.is_running():
+    while coppelia.is_running()  and time_step < max_Training_Time:
         readings = robot.get_sonar()
         img = robot.get_image()
         on_line, line_offset  = process_camera_image(img)
