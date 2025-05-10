@@ -32,8 +32,6 @@ def process_camera_image(img):
 
     # Focus on the bottom of the image
     bottom_region = mask[int(height * 0.95):, :]
-
-    # Find contours in the bottom region
     contours, _ = cv2.findContours(bottom_region, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     on_line = False
@@ -142,7 +140,7 @@ def calculate_fitness(avg_speed, turn_amount, line_offset, on_line, alignment_st
     if avg_speed > 0.1 and turn_amount < 1.5:
         
         # General Movement
-        fitness + time_step * abs(avg_speed)
+        fitness += time_step * abs(avg_speed)
         
         # How well the robot is aligned
         if(on_line):
@@ -157,7 +155,6 @@ def calculate_fitness(avg_speed, turn_amount, line_offset, on_line, alignment_st
             elif(abs_line_offset < 110):
                 fitness += alignment_steps
 
-    
     # Obstacle avoidance
     if stuck_steps > 0:
         fitness -= stuck_steps
