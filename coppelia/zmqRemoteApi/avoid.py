@@ -10,7 +10,7 @@ config_path = "neat_config.txt"
 robot_info_path = "output/robot_info.txt"
 graphs_path = "output/graphs"
 
-Number_Generations = 80
+Number_Generations = 100
 max_Training_Time = 800 # 20 steps equal one second
 
 def count_files(directory):
@@ -28,17 +28,29 @@ def process_camera_image(img):
     upper_blue = np.array([122, 255, 255])
     mask = cv2.inRange(hsv, lower_blue, upper_blue)
 
-    # Check if line is at the bottom
-    height = mask.shape[0]
-    bottom_region = mask[int(height * 0.9999):, :]
-    
+    height, width = mask.shape
+
+    # Focus on the bottom of the image
+    bottom_region = mask[int(height * 0.95):, :]
+
+    # Find contours in the bottom region
+    contours, _ = cv2.findContours(bottom_region, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
     on_line = False
-    num_pixels =  cv2.countNonZero(bottom_region)
+    line_offset = 0  # Positive = right, Negative = left, 0 = centered or not found
 
-    if num_pixels > 0 and num_pixels < 100:
+    if contours:
         on_line = True
-
-    return on_line
+        largest_contour = max(contours, key=cv2.contourArea)
+        M = cv2.moments(largest_contour)
+        if M["m00"] > 0:
+            cx = int(M["m10"] / M["m00"])  # x-coordinate of center of contour
+            line_offset = cx - (width // 2)  # distance from image center
+        else:
+            line_offset = 0
+    else:
+        line_offset = 0
+    return on_line, line_offset
 
 def eval_genome(genome, config):    
     net = neat.nn.FeedForwardNetwork.create(genome, config)
@@ -57,10 +69,10 @@ def eval_genome(genome, config):
     
     coppelia.start_simulation()
        
-    while coppelia.is_running() and time_step < max_Training_Time:
+    while coppelia.is_running():
         readings = robot.get_sonar()
         img = robot.get_image()
-        on_line  = process_camera_image(img)
+        on_line, line_offset  = process_camera_image(img)
         
         outputs = net.activate(readings)
         lspeed = outputs[0]
@@ -111,7 +123,7 @@ def eval_genome(genome, config):
 
         time_step += 1
 
-        fitness = calculate_fitness(avg_speed, turn_amount, alignment_steps/20, backwards_steps/20, turn_steps/20, stuck_steps/20, stop_steps/20, time_step/20)
+        fitness = calculate_fitness(avg_speed, turn_amount, line_offset, on_line, alignment_steps/20, backwards_steps/20, turn_steps/20, stuck_steps/20, stop_steps/20, time_step/20)
         total_fitness += int(fitness)
         
     coppelia.stop_simulation()
@@ -122,17 +134,29 @@ def eval_genomes(genomes, config):
         genome.fitness = eval_genome(genome, config)
         print(f"Genome {genome_id} fitness: {genome.fitness}")
         
-def calculate_fitness(avg_speed, turn_amount, alignment_steps, backwards_steps, turn_steps, stuck_steps, stop_steps, time_step):
+def calculate_fitness(avg_speed, turn_amount, line_offset, on_line, alignment_steps, backwards_steps, turn_steps, stuck_steps, stop_steps, time_step):
     fitness = 0
-    
+    abs_line_offset = abs(line_offset)
+
     # Positive speed and no circles   
     if avg_speed > 0.1 and turn_amount < 1.5:
         
         # General Movement
-        fitness + time_step
+        fitness + time_step * abs(avg_speed)
         
-        # Robot is on the line
-        fitness += alignment_steps
+        # How well the robot is aligned
+        if(on_line):
+            if(abs_line_offset < 22):
+                fitness += alignment_steps * 5
+            elif(abs_line_offset < 44):
+                fitness += alignment_steps * 4
+            elif(abs_line_offset < 66):
+                fitness += alignment_steps * 3
+            elif(abs_line_offset < 88):
+                fitness += alignment_steps * 2
+            elif(abs_line_offset < 110):
+                fitness += alignment_steps
+
     
     # Obstacle avoidance
     if stuck_steps > 0:
