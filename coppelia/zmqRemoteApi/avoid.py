@@ -95,7 +95,7 @@ def eval_genome(genome, config):
         else:
             backwards_steps = 0
                
-        if any(distance < 0.1 for distance in readings):
+        if any(distance < 0.2 for distance in readings):
             stuck_steps += 1
         else:
             stuck_steps = 0
