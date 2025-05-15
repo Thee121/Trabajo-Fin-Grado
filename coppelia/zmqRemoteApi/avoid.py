@@ -134,21 +134,22 @@ def eval_genomes(genomes, config):
 def calculate_fitness(avg_speed, turn_amount, line_offset, on_line, alignment_steps, backwards_steps, turn_steps, stuck_steps, stop_steps, time_step):
     fitness = 0
     abs_line_offset = abs(line_offset)
+    fitness_factor = abs(avg_speed) * alignment_steps
 
     # Positive speed and no circles   
     if avg_speed > 0.1 and turn_amount < 1.5:
         
         # General Movement
-        fitness += time_step * abs(avg_speed)
+        fitness += time_step
         
         # How well the robot is aligned
         if(on_line):
             if(abs_line_offset < 27.5):
-                fitness += alignment_steps * 8
+                fitness += fitness_factor * 8
             elif(abs_line_offset < 55):
-                fitness += alignment_steps * 4
+                fitness += fitness_factor * 4
             elif(abs_line_offset < 110):
-                fitness += alignment_steps * 2
+                fitness += fitness_factor * 2
 
     # Obstacle avoidance
     if stuck_steps > 0:
