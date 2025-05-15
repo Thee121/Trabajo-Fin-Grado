@@ -11,7 +11,7 @@ robot_info_path = "output/robot_info.txt"
 graphs_path = "output/graphs"
 
 Number_Generations = 81
-max_Training_Time = 800 # 20 steps equal one second
+max_Training_Time = 1200 # 20 steps equal one second
 
 def count_files(directory):
     try:
@@ -144,9 +144,9 @@ def calculate_fitness(avg_speed, turn_amount, line_offset, on_line, alignment_st
         # How well the robot is aligned
         if(on_line):
             if(abs_line_offset < 27.5):
-                fitness += alignment_steps * 4
+                fitness += alignment_steps * 8
             elif(abs_line_offset < 55):
-                fitness += alignment_steps * 3
+                fitness += alignment_steps * 4
             elif(abs_line_offset < 110):
                 fitness += alignment_steps * 2
 
