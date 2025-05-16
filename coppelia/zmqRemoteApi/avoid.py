@@ -30,7 +30,7 @@ def process_camera_image(img):
 
     height, width = mask.shape
 
-    bottom_region = mask[int(height * 0.95):, :]
+    bottom_region = mask[int(height * 0.98):, :]
     contours, _ = cv2.findContours(bottom_region, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     on_line = False
@@ -56,13 +56,12 @@ def eval_genome(genome, config):
     
     backwards_steps = 0
     turn_steps = 0
-    stuck_steps = 0
     stop_steps = 0
-    alignment_steps = 0
-    lost_steps = 0
     turn_amount = 0
     time_step= 0
-    
+    stuck_steps = 0
+    stuck = False
+  
     total_fitness = 0
     
     coppelia.start_simulation()
@@ -90,39 +89,37 @@ def eval_genome(genome, config):
         else:
             turn_amount = turn_amountr
             
+        if(turn_amount > 1.5):
+            turn_steps += 1
+        else:
+            turn_steps = 0
+                       
         if(avg_speed < 0):
             backwards_steps += 1
         else:
             backwards_steps = 0
                    
         if any(distance < 0.1 for distance in readings):
+            stuck = True
             stuck_steps += 1
         else:
+            stuck = False
             stuck_steps = 0
-                
-        if(turn_amount > 1.5):
-            turn_steps += 1
-        else:
-            turn_steps = 0
             
         if(avg_speed == 0):
             stop_steps += 1
+        else:
+            stop_steps = 0
             
+ 
         if(stop_steps > 100 or turn_steps > 100 or stuck_steps > 100 or backwards_steps > 100):
             break
-        
-        if on_line:
-            alignment_steps += 1
-            lost_steps = 0
-        else:
-            lost_steps += 1
-            alignment_steps = 0
             
         time_step += 1
 
-        fitness = calculate_fitness(avg_speed, turn_amount, line_offset, on_line, alignment_steps/20, backwards_steps/20, turn_steps/20, stuck_steps/20, stop_steps/20, lost_steps/20)
+        fitness = calculate_fitness(avg_speed, turn_amount, line_offset, on_line, stuck)
         total_fitness += fitness
-        
+
     coppelia.stop_simulation()
     return round(total_fitness, 3)
 
@@ -131,41 +128,39 @@ def eval_genomes(genomes, config):
         genome.fitness = eval_genome(genome, config)
         print(f"Genome {genome_id} fitness: {genome.fitness}")
         
-def calculate_fitness(avg_speed, turn_amount, line_offset, on_line, alignment_steps, backwards_steps, turn_steps, stuck_steps, stop_steps, lost_steps):
+def calculate_fitness(avg_speed, turn_amount, line_offset, on_line, stuck):
     fitness = 0
-    abs_line_offset = abs(line_offset)
-
+    
     # Positive speed, no circles, full line in camera
-    if avg_speed > 0.1 and turn_amount < 1.5 and abs_line_offset < 111:
-        line_factor = (110 - abs_line_offset) / 110  # 1 = Perfectly aligned; 0 = worst alignment possible
-        fitness_factor = line_factor * alignment_steps * abs(avg_speed)
+    if avg_speed > 0.1 and turn_amount < 1.5 and on_line:
+        abs_line_offset = abs(line_offset)
         
-        # How well the robot is aligned
-        if(on_line):
-            if(abs_line_offset < 27.5):
-                fitness += fitness_factor * 4
-            elif(abs_line_offset < 55):
-                fitness += fitness_factor * 3
-            elif(abs_line_offset < 82.5):
-                fitness += fitness_factor * 2
-            elif(abs_line_offset < 110):
-                fitness += fitness_factor
-            
+        #Moves forward while following line
+        fitness += abs(avg_speed)
+        
+        # How well the robot is aligned         
+        if(abs_line_offset < 22):
+            fitness += 5
+        elif(abs_line_offset < 66):
+            fitness += 3
+        elif(abs_line_offset < 110):
+            fitness += 1
+                         
     # Penalize wondering
     if not on_line:
-        fitness -= lost_steps
+        fitness -= 2
         
     # Obstacle avoidance
-    if stuck_steps > 0:
-        fitness -= stuck_steps
+    if stuck > 0:
+        fitness -= 1
         
     # Movement penalties
     if turn_amount > 1.5: # Spinning too much
-        fitness -= turn_steps 
+        fitness -= 1 
     if avg_speed < 0:  # Moving backwards
-        fitness -= backwards_steps
+        fitness -= 1
     if avg_speed == 0: # No movement
-        fitness -= stop_steps
+        fitness -= 1
         
     return fitness
         
