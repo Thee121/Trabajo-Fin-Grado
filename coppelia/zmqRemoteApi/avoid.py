@@ -124,7 +124,7 @@ def eval_genome(genome, config):
         total_fitness += fitness
         
     coppelia.stop_simulation()
-    return int(total_fitness)
+    return total_fitness
 
 def eval_genomes(genomes, config):
     for genome_id, genome in genomes:
@@ -284,7 +284,6 @@ def main():
                         print(f"Error deleting {file_path}: {e}")
                 print("Deleted all the Graphs")
             
-            print("Starting a fresh training.")            
             run_neat(config_path)
         
         else:
