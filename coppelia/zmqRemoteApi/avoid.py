@@ -124,7 +124,7 @@ def eval_genome(genome, config):
         total_fitness += fitness
         
     coppelia.stop_simulation()
-    return total_fitness
+    return round(total_fitness, 3)
 
 def eval_genomes(genomes, config):
     for genome_id, genome in genomes:
