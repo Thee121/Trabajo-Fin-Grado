@@ -11,7 +11,7 @@ robot_info_path = "output/robot_info.txt"
 graphs_path = "output/graphs"
 
 Number_Generations = 81
-max_Training_Time = 1200 # 20 steps equal one second
+max_Training_Time = 600 # 20 steps equal one second
 
 def count_files(directory):
     try:
@@ -59,6 +59,7 @@ def eval_genome(genome, config):
     stuck_steps = 0
     stop_steps = 0
     alignment_steps = 0
+    lost_steps = 0
     turn_amount = 0
     time_step= 0
     
@@ -76,11 +77,11 @@ def eval_genome(genome, config):
         rspeed = outputs[1]
         robot.set_speed(lspeed, rspeed)
         
-        fitness = 0
-        
         avg_speed = (lspeed + rspeed) / 2
         turn_amountl = abs(lspeed - rspeed)
         turn_amountr = abs(rspeed -lspeed)
+        
+        fitness = 0
         
         if(lspeed == 0 and abs(rspeed) > 0) or (rspeed == 0 and abs(lspeed > 0)):
             turn_amount = 2
@@ -93,34 +94,33 @@ def eval_genome(genome, config):
             backwards_steps += 1
         else:
             backwards_steps = 0
-               
+                   
         if any(distance < 0.1 for distance in readings):
             stuck_steps += 1
         else:
             stuck_steps = 0
-            
+                
         if(turn_amount > 1.5):
             turn_steps += 1
         else:
             turn_steps = 0
-        
+            
         if(avg_speed == 0):
             stop_steps += 1
-        else:
-            stop_steps = 0
-            
-        if on_line:
-            alignment_steps += 1
-        
-        else:
-            alignment_steps = 0
             
         if(stop_steps > 100 or turn_steps > 100 or stuck_steps > 100 or backwards_steps > 100):
             break
-
+        
+        if on_line:
+            alignment_steps += 1
+            lost_steps = 0
+        else:
+            lost_steps += 1
+            alignment_steps = 0
+            
         time_step += 1
 
-        fitness = calculate_fitness(avg_speed, turn_amount, line_offset, on_line, alignment_steps/20, backwards_steps/20, turn_steps/20, stuck_steps/20, stop_steps/20)
+        fitness = calculate_fitness(avg_speed, turn_amount, line_offset, on_line, alignment_steps/20, backwards_steps/20, turn_steps/20, stuck_steps/20, stop_steps/20, lost_steps/20)
         total_fitness += int(fitness)
         
     coppelia.stop_simulation()
@@ -131,26 +131,30 @@ def eval_genomes(genomes, config):
         genome.fitness = eval_genome(genome, config)
         print(f"Genome {genome_id} fitness: {genome.fitness}")
         
-def calculate_fitness(avg_speed, turn_amount, line_offset, on_line, alignment_steps, backwards_steps, turn_steps, stuck_steps, stop_steps):
+def calculate_fitness(avg_speed, turn_amount, line_offset, on_line, alignment_steps, backwards_steps, turn_steps, stuck_steps, stop_steps, lost_steps):
     fitness = 0
     abs_line_offset = abs(line_offset)
 
-    # Positive speed and no circles   
+    # Positive speed, no circles, full line in camera
     if avg_speed > 0.1 and turn_amount < 1.5 and abs_line_offset < 111:
         line_factor = (110 - abs_line_offset) / 110  # 1 = Perfectly aligned; 0 = worst alignment possible
-        fitness_factor = line_factor * alignment_steps
+        fitness_factor = line_factor * alignment_steps * abs(avg_speed)
         
         # How well the robot is aligned
         if(on_line):
             if(abs_line_offset < 27.5):
-                fitness += fitness_factor * 8
-            elif(abs_line_offset < 55):
                 fitness += fitness_factor * 4
+            elif(abs_line_offset < 55):
+                fitness += fitness_factor * 3
             elif(abs_line_offset < 82.5):
                 fitness += fitness_factor * 2
             elif(abs_line_offset < 110):
                 fitness += fitness_factor
-
+            
+    # Penalize wondering
+    if not on_line:
+        fitness -= lost_steps
+        
     # Obstacle avoidance
     if stuck_steps > 0:
         fitness -= stuck_steps
