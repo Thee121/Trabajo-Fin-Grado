@@ -115,12 +115,12 @@ def eval_genome(genome, config):
         else:
             alignment_steps = 0
             
-        if(stop_steps > 200 or turn_steps > 200 or stuck_steps > 200 or backwards_steps > 200):
+        if(stop_steps > 100 or turn_steps > 100 or stuck_steps > 100 or backwards_steps > 100):
             break
 
         time_step += 1
 
-        fitness = calculate_fitness(avg_speed, turn_amount, line_offset, on_line, alignment_steps/20, backwards_steps/20, turn_steps/20, stuck_steps/20, stop_steps/20, time_step/20)
+        fitness = calculate_fitness(avg_speed, turn_amount, line_offset, on_line, alignment_steps/20, backwards_steps/20, turn_steps/20, stuck_steps/20, stop_steps/20)
         total_fitness += int(fitness)
         
     coppelia.stop_simulation()
@@ -131,16 +131,14 @@ def eval_genomes(genomes, config):
         genome.fitness = eval_genome(genome, config)
         print(f"Genome {genome_id} fitness: {genome.fitness}")
         
-def calculate_fitness(avg_speed, turn_amount, line_offset, on_line, alignment_steps, backwards_steps, turn_steps, stuck_steps, stop_steps, time_step):
+def calculate_fitness(avg_speed, turn_amount, line_offset, on_line, alignment_steps, backwards_steps, turn_steps, stuck_steps, stop_steps):
     fitness = 0
     abs_line_offset = abs(line_offset)
-    fitness_factor = abs(avg_speed) * alignment_steps
 
     # Positive speed and no circles   
-    if avg_speed > 0.1 and turn_amount < 1.5:
-        
-        # General Movement
-        fitness += time_step
+    if avg_speed > 0.1 and turn_amount < 1.5 and abs_line_offset < 111:
+        line_factor = (110 - abs_line_offset) / 110  # 1 = Perfectly aligned; 0 = worst alignment possible
+        fitness_factor = line_factor * alignment_steps
         
         # How well the robot is aligned
         if(on_line):
@@ -148,8 +146,10 @@ def calculate_fitness(avg_speed, turn_amount, line_offset, on_line, alignment_st
                 fitness += fitness_factor * 8
             elif(abs_line_offset < 55):
                 fitness += fitness_factor * 4
-            elif(abs_line_offset < 110):
+            elif(abs_line_offset < 82.5):
                 fitness += fitness_factor * 2
+            elif(abs_line_offset < 110):
+                fitness += fitness_factor
 
     # Obstacle avoidance
     if stuck_steps > 0:
@@ -164,7 +164,7 @@ def calculate_fitness(avg_speed, turn_amount, line_offset, on_line, alignment_st
         fitness -= stop_steps
         
     return fitness
-
+        
 def run_neat(config_path):
     config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                          neat.DefaultSpeciesSet, neat.DefaultStagnation,
