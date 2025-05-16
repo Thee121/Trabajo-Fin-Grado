@@ -121,10 +121,10 @@ def eval_genome(genome, config):
         time_step += 1
 
         fitness = calculate_fitness(avg_speed, turn_amount, line_offset, on_line, alignment_steps/20, backwards_steps/20, turn_steps/20, stuck_steps/20, stop_steps/20, lost_steps/20)
-        total_fitness += int(fitness)
+        total_fitness += fitness
         
     coppelia.stop_simulation()
-    return total_fitness
+    return int(total_fitness)
 
 def eval_genomes(genomes, config):
     for genome_id, genome in genomes:
