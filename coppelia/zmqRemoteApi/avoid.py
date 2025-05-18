@@ -135,15 +135,15 @@ def calculate_fitness(avg_speed, turn_amount, line_offset, on_line, stuck):
     if avg_speed > 0.1 and on_line and abs_line_offset <= 110:
         fitness_factor = 1 - (abs_line_offset / 110) # 1 = perfectly aligned ; 0 = worst alignment possible
 
-        fitness += abs(avg_speed) + fitness_factor * 7
+        fitness += abs(avg_speed) * fitness_factor * 5
 
     # Penalize wondering
     if not on_line:
-        fitness -= 5
+        fitness -= 3
         
     # Obstacle avoidance
     if stuck > 0:
-        fitness -= 2
+        fitness -= 1
         
     # Movement penalties
     if turn_amount > 1.5: # Spinning too much
