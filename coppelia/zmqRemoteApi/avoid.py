@@ -11,7 +11,7 @@ robot_info_path = "output/robot_info.txt"
 graphs_path = "output/graphs"
 
 Number_Generations = 81
-max_Training_Time = 600 # 20 steps equal one second
+max_Training_Time = 800 # 20 steps equal one second
 
 def count_files(directory):
     try:
@@ -30,11 +30,11 @@ def process_camera_image(img):
 
     height, width = mask.shape
 
-    bottom_region = mask[int(height * 0.98):, :]
+    bottom_region = mask[int(height * 0.95):, :]
     contours, _ = cv2.findContours(bottom_region, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     on_line = False
-    line_offset = 0  # Positive = right, Negative = left, 0 = centered or not found
+    line_offset = 0  # Positive = right, Negative = left, 0 = completly centered, 1000 = not found
 
     if contours:
         on_line = True
@@ -44,9 +44,9 @@ def process_camera_image(img):
             cx = int(M["m10"] / M["m00"])  # x-coordinate of center of contour
             line_offset = cx - (width // 2)  # distance from image center
         else:
-            line_offset = 0
+            line_offset = 1000
     else:
-        line_offset = 0
+        line_offset = 1000
     return on_line, line_offset
 
 def eval_genome(genome, config):    
@@ -111,7 +111,6 @@ def eval_genome(genome, config):
         else:
             stop_steps = 0
             
- 
         if(stop_steps > 100 or turn_steps > 100 or stuck_steps > 100 or backwards_steps > 100):
             break
             
@@ -121,7 +120,7 @@ def eval_genome(genome, config):
         total_fitness += fitness
 
     coppelia.stop_simulation()
-    return round(total_fitness, 3)
+    return round(total_fitness, 4)
 
 def eval_genomes(genomes, config):
     for genome_id, genome in genomes:
@@ -130,37 +129,29 @@ def eval_genomes(genomes, config):
         
 def calculate_fitness(avg_speed, turn_amount, line_offset, on_line, stuck):
     fitness = 0
+    abs_line_offset = abs(line_offset)
     
-    # Positive speed, no circles, full line in camera
-    if avg_speed > 0.1 and turn_amount < 1.5 and on_line:
-        abs_line_offset = abs(line_offset)
-        
-        #Moves forward while following line
-        fitness += abs(avg_speed)
-        
-        # How well the robot is aligned         
-        if(abs_line_offset < 22):
-            fitness += 5
-        elif(abs_line_offset < 66):
-            fitness += 3
-        elif(abs_line_offset < 110):
-            fitness += 1
-                         
+    # Follow line correctly with positive speed
+    if avg_speed > 0.1 and on_line and abs_line_offset <= 110:
+        fitness_factor = 1 - (abs_line_offset / 110) # 1 = perfectly aligned ; 0 = worst alignment possible
+
+        fitness += abs(avg_speed) + fitness_factor * 10
+
     # Penalize wondering
     if not on_line:
-        fitness -= 2
+        fitness -= 10
         
     # Obstacle avoidance
     if stuck > 0:
-        fitness -= 1
+        fitness -= 2
         
     # Movement penalties
     if turn_amount > 1.5: # Spinning too much
-        fitness -= 1 
+        fitness -= 2 
     if avg_speed < 0:  # Moving backwards
-        fitness -= 1
+        fitness -= 2
     if avg_speed == 0: # No movement
-        fitness -= 1
+        fitness -= 2
         
     return fitness
         
