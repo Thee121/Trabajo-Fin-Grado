@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 GRAPH_EVERY_X_GENERATIONS = 1
 
 Checkpoint_Dir = "output/checkpoints"
-Output_File = "output/robot_info"
+Output_File = "output/robot_info.txt"
 Output_Graphs_Dir = "output/graphs"
 
 os.makedirs(Output_Graphs_Dir, exist_ok=True)

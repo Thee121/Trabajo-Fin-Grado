@@ -10,7 +10,7 @@ config_path = "neat_config.txt"
 robot_info_path = "output/robot_info.txt"
 graphs_path = "output/graphs"
 
-Number_Generations = 81
+Number_Generations = 101
 max_Training_Time = 800 # 20 steps equal one second
 
 def count_files(directory):
@@ -118,10 +118,15 @@ def eval_genome(genome, config):
 
         fitness = calculate_fitness(avg_speed, turn_amount, line_offset, on_line, stuck)
         total_fitness += fitness
-
+        
     coppelia.stop_simulation()
-    return round(total_fitness, 4)
+    
+    # Rewards longer time
+    total_fitness += time_step
+    return total_fitness
 
+    #return round(total_fitness, 2)
+    
 def eval_genomes(genomes, config):
     for genome_id, genome in genomes:
         genome.fitness = eval_genome(genome, config)
@@ -133,25 +138,31 @@ def calculate_fitness(avg_speed, turn_amount, line_offset, on_line, stuck):
     
     # Follow line correctly with positive speed
     if avg_speed > 0.1 and on_line and abs_line_offset <= 110:
-        fitness_factor = 1 - (abs_line_offset / 110) # 1 = perfectly aligned ; 0 = worst alignment possible
+        #fitness_factor = 1 - (abs_line_offset / 110) # 1 = perfectly aligned ; 0 = worst alignment possible
+        #fitness += fitness_factor * 2
 
-        fitness += abs(avg_speed) + fitness_factor * 2
-
+        if(line_offset < 55):
+            fitness += 2
+        elif line_offset < 110:
+            fitness += 1
+            
     # Penalize wondering
     if not on_line:
-        fitness -= 2
+        fitness -= 1
         
     # Obstacle avoidance
-    if stuck > 0:
-        fitness -= 2
+    if stuck:
+        fitness -= 1
         
     # Movement penalties
-    if turn_amount > 1.5: # Spinning too much
-        fitness -= 2 
+    if turn_amount > 1.5: # Spinning too much or very sharp turns
+        fitness -= 1 
     if avg_speed < 0:  # Moving backwards
-        fitness -= 2
+        fitness -= 1
     if avg_speed == 0: # No movement
-        fitness -= 2
+        fitness -= 1
+    if abs(avg_speed) < 0.1: # Barely any movement
+        fitness -= 1
         
     return fitness
         
