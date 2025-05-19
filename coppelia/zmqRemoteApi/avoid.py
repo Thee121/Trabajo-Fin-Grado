@@ -60,6 +60,7 @@ def eval_genome(genome, config):
     turn_amount = 0
     time_step= 0
     stuck_steps = 0
+    low_speed_steps = 0
     stuck = False
   
     total_fitness = 0
@@ -82,14 +83,14 @@ def eval_genome(genome, config):
         
         fitness = 0
         
-        if(lspeed == 0 and abs(rspeed) > 0) or (rspeed == 0 and abs(lspeed > 0)):
+        if(lspeed == 0 and abs(rspeed) > 0) or (rspeed == 0 and abs(lspeed) > 0):
             turn_amount = 2
         elif(turn_amountl > turn_amountr):
             turn_amount = turn_amountl
         else:
             turn_amount = turn_amountr
             
-        if(turn_amount > 1.5):
+        if(turn_amount >= 1.5):
             turn_steps += 1
         else:
             turn_steps = 0
@@ -99,7 +100,7 @@ def eval_genome(genome, config):
         else:
             backwards_steps = 0
                    
-        if any(distance < 0.1 for distance in readings):
+        if any(distance <= 0.1 for distance in readings):
             stuck = True
             stuck_steps += 1
         else:
@@ -110,8 +111,13 @@ def eval_genome(genome, config):
             stop_steps += 1
         else:
             stop_steps = 0
-            
-        if(stop_steps > 100 or turn_steps > 100 or stuck_steps > 100 or backwards_steps > 100):
+        
+        if(abs(avg_speed) <= 0.2):
+            low_speed_steps += 1
+        else:
+            low_speed_steps = 0
+               
+        if(stop_steps >= 80 or turn_steps >= 80 or stuck_steps >= 80 or backwards_steps >= 80 or low_speed_steps >= 80):
             break
             
         time_step += 1
@@ -123,9 +129,8 @@ def eval_genome(genome, config):
     
     # Rewards longer time
     total_fitness += time_step
+    
     return total_fitness
-
-    #return round(total_fitness, 2)
     
 def eval_genomes(genomes, config):
     for genome_id, genome in genomes:
@@ -137,13 +142,10 @@ def calculate_fitness(avg_speed, turn_amount, line_offset, on_line, stuck):
     abs_line_offset = abs(line_offset)
     
     # Follow line correctly with positive speed
-    if avg_speed > 0.1 and on_line and abs_line_offset <= 110:
-        #fitness_factor = 1 - (abs_line_offset / 110) # 1 = perfectly aligned ; 0 = worst alignment possible
-        #fitness += fitness_factor * 2
-
-        if(line_offset < 55):
+    if avg_speed > 0.2 and on_line:
+        if(abs_line_offset <= 55):
             fitness += 2
-        elif line_offset < 110:
+        elif(abs_line_offset <= 110):
             fitness += 1
             
     # Penalize wondering
@@ -154,14 +156,15 @@ def calculate_fitness(avg_speed, turn_amount, line_offset, on_line, stuck):
     if stuck:
         fitness -= 1
         
-    # Movement penalties
-    if turn_amount > 1.5: # Spinning too much or very sharp turns
-        fitness -= 1 
-    if avg_speed < 0:  # Moving backwards
+    # Spinning too much or very sharp turns       
+    if turn_amount >= 1.5: 
         fitness -= 1
-    if avg_speed == 0: # No movement
+        
+    # Moving backwards or no movement    
+    if avg_speed <= 0:  
         fitness -= 1
-    if abs(avg_speed) < 0.1: # Barely any movement
+    # Barely positive speed 
+    elif abs(avg_speed) <= 0.2: 
         fitness -= 1
         
     return fitness
