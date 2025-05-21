@@ -10,8 +10,8 @@ config_path = "neat_config.txt"
 robot_info_path = "output/robot_info.txt"
 graphs_path = "output/graphs"
 
-Number_Generations = 101
-max_Training_Time = 800 # 20 steps equal one second
+Number_Generations = 161
+max_Training_Time = 1200 # 20 steps equal one second
 
 def count_files(directory):
     try:
@@ -122,7 +122,7 @@ def eval_genome(genome, config):
             
         time_step += 1
 
-        fitness = calculate_fitness(avg_speed, turn_amount, line_offset, on_line, stuck)
+        fitness = calculate_fitness(avg_speed, line_offset, on_line, stuck)
         total_fitness += fitness
         
     coppelia.stop_simulation()
@@ -137,7 +137,7 @@ def eval_genomes(genomes, config):
         genome.fitness = eval_genome(genome, config)
         print(f"Genome {genome_id} fitness: {genome.fitness}")
         
-def calculate_fitness(avg_speed, turn_amount, line_offset, on_line, stuck):
+def calculate_fitness(avg_speed, line_offset, on_line, stuck):
     fitness = 0
     abs_line_offset = abs(line_offset)
     
@@ -156,13 +156,10 @@ def calculate_fitness(avg_speed, turn_amount, line_offset, on_line, stuck):
     if stuck:
         fitness -= 1
         
-    # Spinning too much or very sharp turns       
-    if turn_amount >= 1.5: 
-        fitness -= 1
-        
     # Moving backwards or no movement    
     if avg_speed <= 0:  
         fitness -= 1
+        
     # Barely positive speed 
     elif abs(avg_speed) <= 0.2: 
         fitness -= 1
