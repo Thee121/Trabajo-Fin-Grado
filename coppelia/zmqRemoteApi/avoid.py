@@ -11,7 +11,7 @@ robot_info_path = "output/robot_info.txt"
 graphs_path = "output/graphs"
 
 Number_Generations = 161
-max_Training_Time = 1200 # 20 steps equal one second
+max_Training_Time = 1000 # 20 steps equal one second
 
 def count_files(directory):
     try:
@@ -150,7 +150,7 @@ def calculate_fitness(avg_speed, line_offset, on_line, stuck):
             
     # Penalize wondering
     if not on_line:
-        fitness -= 1
+        fitness -= 2
         
     # Obstacle avoidance
     if stuck:
