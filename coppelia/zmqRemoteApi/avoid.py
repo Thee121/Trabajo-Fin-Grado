@@ -10,8 +10,8 @@ config_path = "neat_config.txt"
 robot_info_path = "output/robot_info.txt"
 graphs_path = "output/graphs"
 
-Number_Generations = 161
-max_Training_Time = 1000 # 20 steps equal one second
+Number_Generations = 201
+max_Training_Time = 1200 # 20 steps equal one second
 
 def count_files(directory):
     try:
@@ -72,7 +72,13 @@ def eval_genome(genome, config):
         img = robot.get_image()
         on_line, line_offset  = process_camera_image(img)
         
-        outputs = net.activate(readings)
+        camera_width = img.shape[1]
+        normalized_line_offset = line_offset / (camera_width/2) if camera_width > 0 else 0
+        on_line_input = 1 if on_line else 0
+
+        inputs = readings + [normalized_line_offset, on_line_input]
+        outputs = net.activate(inputs)
+
         lspeed = outputs[0]
         rspeed = outputs[1]
         robot.set_speed(lspeed, rspeed)
@@ -141,11 +147,11 @@ def calculate_fitness(avg_speed, line_offset, on_line, stuck):
     fitness = 0
     abs_line_offset = abs(line_offset)
     
-    # Follow line correctly with positive speed
-    if avg_speed > 0.2 and on_line:
-        if(abs_line_offset <= 55):
+    # Follow line correctly
+    if on_line and avg_speed > 0.1:
+        if(abs_line_offset <= 56):
             fitness += 2
-        elif(abs_line_offset <= 110):
+        else:
             fitness += 1
             
     # Penalize wondering
@@ -158,12 +164,11 @@ def calculate_fitness(avg_speed, line_offset, on_line, stuck):
         
     # Moving backwards or no movement    
     if avg_speed <= 0:  
-        fitness -= 1
-        
+        fitness -= 1 
     # Barely positive speed 
-    elif abs(avg_speed) <= 0.2: 
+    elif abs(avg_speed) <= 0.1: 
         fitness -= 1
-        
+
     return fitness
         
 def run_neat(config_path):
