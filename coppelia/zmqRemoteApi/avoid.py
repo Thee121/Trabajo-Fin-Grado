@@ -128,7 +128,7 @@ def eval_genome(genome, config):
             
         time_step += 1
 
-        fitness = calculate_fitness(avg_speed, line_offset, on_line, stuck)
+        fitness = calculate_fitness(avg_speed, line_offset, on_line, stuck, turn_amount)
         total_fitness += fitness
         
     coppelia.stop_simulation()
@@ -143,7 +143,7 @@ def eval_genomes(genomes, config):
         genome.fitness = eval_genome(genome, config)
         print(f"Genome {genome_id} fitness: {genome.fitness}")
         
-def calculate_fitness(avg_speed, line_offset, on_line, stuck):
+def calculate_fitness(avg_speed, line_offset, on_line, stuck, turn_amount):
     fitness = 0
     abs_line_offset = abs(line_offset)
     
@@ -167,6 +167,10 @@ def calculate_fitness(avg_speed, line_offset, on_line, stuck):
         fitness -= 1 
     # Barely positive speed 
     elif abs(avg_speed) <= 0.1: 
+        fitness -= 1
+
+    # Makes sharp turns while not on the line
+    if not on_line and turn_amount > 1.5:
         fitness -= 1
 
     return fitness
