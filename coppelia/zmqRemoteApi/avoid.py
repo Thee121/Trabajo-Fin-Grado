@@ -148,7 +148,7 @@ def calculate_fitness(avg_speed, line_offset, on_line, stuck, turn_amount):
     abs_line_offset = abs(line_offset)
     
     # Follow line correctly
-    if on_line and avg_speed > 0.1:
+    if on_line and avg_speed > 0.2:
         if(abs_line_offset < 56):
             fitness += 2
         else:
@@ -166,7 +166,7 @@ def calculate_fitness(avg_speed, line_offset, on_line, stuck, turn_amount):
     if avg_speed <= 0:  
         fitness -= 1 
     # Barely positive speed 
-    elif abs(avg_speed) <= 0.1: 
+    elif abs(avg_speed) <= 0.2: 
         fitness -= 1
 
     # Makes sharp turns while not on the line
