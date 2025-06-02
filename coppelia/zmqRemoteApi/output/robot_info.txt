@@ -1,0 +1,267 @@
+Checkpoint Summary:
+
+----------------------------------------
+Checkpoint: neat_checkpoint-0
+Generation: 0
+Total species: 1
+Total genomes: 150
+Average Fitness: 1269.2500
+Best Fitness: 1993.0000
+Lowest Fitness: 482.0000
+Standard Deviation: 462.3888
+Total Extinction: No
+----------------------------------------
+
+Checkpoint: neat_checkpoint-1
+Generation: 1
+Total species: 1
+Total genomes: 150
+Average Fitness: 1393.8750
+Best Fitness: 1613.0000
+Lowest Fitness: 1215.0000
+Standard Deviation: 143.4418
+Total Extinction: No
+----------------------------------------
+
+Checkpoint: neat_checkpoint-2
+Generation: 2
+Total species: 1
+Total genomes: 150
+Average Fitness: 1715.5000
+Best Fitness: 2075.0000
+Lowest Fitness: 1539.0000
+Standard Deviation: 194.8787
+Total Extinction: No
+----------------------------------------
+
+Checkpoint: neat_checkpoint-3
+Generation: 3
+Total species: 1
+Total genomes: 150
+Average Fitness: 1974.3750
+Best Fitness: 2515.0000
+Lowest Fitness: 1753.0000
+Standard Deviation: 240.0630
+Total Extinction: No
+----------------------------------------
+
+Checkpoint: neat_checkpoint-4
+Generation: 4
+Total species: 1
+Total genomes: 150
+Average Fitness: 2056.8750
+Best Fitness: 2689.0000
+Lowest Fitness: 1759.0000
+Standard Deviation: 358.8559
+Total Extinction: No
+----------------------------------------
+
+Checkpoint: neat_checkpoint-5
+Generation: 5
+Total species: 1
+Total genomes: 150
+Average Fitness: 2095.3750
+Best Fitness: 2697.0000
+Lowest Fitness: 1838.0000
+Standard Deviation: 314.0769
+Total Extinction: No
+----------------------------------------
+
+Checkpoint: neat_checkpoint-6
+Generation: 6
+Total species: 1
+Total genomes: 150
+Average Fitness: 2142.6250
+Best Fitness: 2671.0000
+Lowest Fitness: 1883.0000
+Standard Deviation: 297.4290
+Total Extinction: No
+----------------------------------------
+
+Checkpoint: neat_checkpoint-7
+Generation: 7
+Total species: 1
+Total genomes: 150
+Average Fitness: 2210.5000
+Best Fitness: 2735.0000
+Lowest Fitness: 1885.0000
+Standard Deviation: 338.4650
+Total Extinction: No
+----------------------------------------
+
+Checkpoint: neat_checkpoint-8
+Generation: 8
+Total species: 1
+Total genomes: 150
+Average Fitness: 2137.2500
+Best Fitness: 2702.0000
+Lowest Fitness: 1765.0000
+Standard Deviation: 389.5201
+Total Extinction: No
+----------------------------------------
+
+Checkpoint: neat_checkpoint-9
+Generation: 9
+Total species: 1
+Total genomes: 150
+Average Fitness: 2405.3750
+Best Fitness: 4122.0000
+Lowest Fitness: 1821.0000
+Standard Deviation: 764.9616
+Total Extinction: No
+----------------------------------------
+
+Checkpoint: neat_checkpoint-10
+Generation: 10
+Total species: 1
+Total genomes: 150
+Average Fitness: 2447.3750
+Best Fitness: 4105.0000
+Lowest Fitness: 1877.0000
+Standard Deviation: 712.9995
+Total Extinction: No
+----------------------------------------
+
+Checkpoint: neat_checkpoint-11
+Generation: 11
+Total species: 1
+Total genomes: 150
+Average Fitness: 2654.5000
+Best Fitness: 4061.0000
+Lowest Fitness: 1931.0000
+Standard Deviation: 681.1964
+Total Extinction: No
+----------------------------------------
+
+Checkpoint: neat_checkpoint-12
+Generation: 12
+Total species: 1
+Total genomes: 150
+Average Fitness: 2577.5000
+Best Fitness: 4128.0000
+Lowest Fitness: 1947.0000
+Standard Deviation: 746.5142
+Total Extinction: No
+----------------------------------------
+
+Checkpoint: neat_checkpoint-13
+Generation: 13
+Total species: 1
+Total genomes: 150
+Average Fitness: 2718.7500
+Best Fitness: 4089.0000
+Lowest Fitness: 1914.0000
+Standard Deviation: 695.6515
+Total Extinction: No
+----------------------------------------
+
+Checkpoint: neat_checkpoint-14
+Generation: 14
+Total species: 1
+Total genomes: 150
+Average Fitness: 2817.8750
+Best Fitness: 4137.0000
+Lowest Fitness: 2233.0000
+Standard Deviation: 602.8446
+Total Extinction: No
+----------------------------------------
+
+Checkpoint: neat_checkpoint-15
+Generation: 15
+Total species: 1
+Total genomes: 150
+Average Fitness: 3036.6250
+Best Fitness: 4141.0000
+Lowest Fitness: 2692.0000
+Standard Deviation: 461.3632
+Total Extinction: No
+----------------------------------------
+
+Checkpoint: neat_checkpoint-16
+Generation: 16
+Total species: 1
+Total genomes: 150
+Average Fitness: 3037.1250
+Best Fitness: 4140.0000
+Lowest Fitness: 2628.0000
+Standard Deviation: 474.0899
+Total Extinction: No
+----------------------------------------
+
+Checkpoint: neat_checkpoint-17
+Generation: 17
+Total species: 1
+Total genomes: 150
+Average Fitness: 3121.0000
+Best Fitness: 4149.0000
+Lowest Fitness: 2842.0000
+Standard Deviation: 420.6505
+Total Extinction: No
+----------------------------------------
+
+Checkpoint: neat_checkpoint-18
+Generation: 18
+Total species: 1
+Total genomes: 150
+Average Fitness: 3151.6250
+Best Fitness: 4156.0000
+Lowest Fitness: 2924.0000
+Standard Deviation: 408.1785
+Total Extinction: No
+----------------------------------------
+
+Checkpoint: neat_checkpoint-19
+Generation: 19
+Total species: 1
+Total genomes: 150
+Average Fitness: 3146.7500
+Best Fitness: 4133.0000
+Lowest Fitness: 2888.0000
+Standard Deviation: 403.1762
+Total Extinction: No
+----------------------------------------
+
+Checkpoint: neat_checkpoint-20
+Generation: 20
+Total species: 1
+Total genomes: 150
+Average Fitness: 3176.7500
+Best Fitness: 4127.0000
+Lowest Fitness: 2960.0000
+Standard Deviation: 390.4443
+Total Extinction: No
+----------------------------------------
+
+Checkpoint: neat_checkpoint-21
+Generation: 21
+Total species: 1
+Total genomes: 150
+Average Fitness: 3183.1250
+Best Fitness: 4142.0000
+Lowest Fitness: 2977.0000
+Standard Deviation: 391.5502
+Total Extinction: No
+----------------------------------------
+
+Checkpoint: neat_checkpoint-22
+Generation: 22
+Total species: 1
+Total genomes: 150
+Average Fitness: 3188.3750
+Best Fitness: 4152.0000
+Lowest Fitness: 2972.0000
+Standard Deviation: 400.2695
+Total Extinction: No
+----------------------------------------
+
+Checkpoint: neat_checkpoint-23
+Generation: 23
+Total species: 1
+Total genomes: 150
+Average Fitness: 3285.8750
+Best Fitness: 4120.0000
+Lowest Fitness: 3039.0000
+Standard Deviation: 360.4265
+Total Extinction: No
+----------------------------------------
+
