@@ -10,7 +10,8 @@ config_path = "neat_config.txt"
 robot_info_path = "output/robot_info.txt"
 graphs_path = "output/graphs"
 
-Number_Generations = 201
+best_genome_run = "best_genome_circuit1.pkl"
+Number_Generations = 150
 max_Training_Time = 1200 # 20 steps equal one second
 
 def count_files(directory):
@@ -150,14 +151,14 @@ def calculate_fitness(avg_speed, line_offset, on_line, stuck, turn_amount):
     # Follow line correctly
     if on_line and avg_speed > 0.2:
         if(abs_line_offset < 56):
-            fitness += 3
-        else:
             fitness += 2
+        else:
+            fitness += 1
             
     # Penalize wondering
     if not on_line:
         fitness -= 5
-        if(turn_amount>1.5):
+        if(turn_amount > 1.5):
             fitness -= 5
         
     # Obstacle avoidance
@@ -201,14 +202,14 @@ def run_neat(config_path):
 def main():
     numFiles = count_files(checkpoint_path)
 
-    if os.path.exists("best_genome.pkl"):
+    if os.path.exists(best_genome_run):
         check1 = True
         while(check1):
             answer = input("A trained model was found. Do you want to test it? (yes/no): ").strip().lower()
             if answer == "yes":
                 check1 = False
                 
-                with open("best_genome.pkl", "rb") as f:
+                with open(best_genome_run, "rb") as f:
                     best_genome = pickle.load(f)
 
                 print("Testing best genome...")
@@ -219,12 +220,21 @@ def main():
                 ))
                 
                 coppelia = robotica.Coppelia()
-                robot = robotica.P3DX(coppelia.sim, 'PioneerP3DX')
+                robot = robotica.P3DX(coppelia.sim, 'PioneerP3DX', True)
+                
                 coppelia.start_simulation()
 
                 while coppelia.is_running():
                     readings = robot.get_sonar()
-                    outputs = best_net.activate(readings)
+                    img = robot.get_image()
+                    on_line, line_offset  = process_camera_image(img)
+                    
+                    camera_width = img.shape[1]
+                    normalized_line_offset = line_offset / (camera_width/2) if camera_width > 0 else 0
+                    on_line_input = 1 if on_line else 0
+                    inputs = readings + [normalized_line_offset, on_line_input]
+
+                    outputs = best_net.activate(inputs)
                     robot.set_speed(outputs[0], outputs[1])
 
                 coppelia.stop_simulation()

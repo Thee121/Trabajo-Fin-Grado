@@ -1,6 +1,6 @@
 [NEAT]
 fitness_criterion     = max
-fitness_threshold     = 4800
+fitness_threshold     = 6000
 pop_size              = 150
 reset_on_extinction   = False
 no_fitness_termination = False
@@ -13,7 +13,7 @@ activation_options      = tanh
 
 # node aggregation options
 aggregation_default     = sum
-aggregation_mutate_rate = 0.1
+aggregation_mutate_rate = 0.0
 aggregation_options     = sum
 
 # node bias options
